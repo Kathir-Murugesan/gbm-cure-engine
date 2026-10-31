@@ -226,8 +226,6 @@ def main():
     max_run_seconds = 5.25 * 3600  # 5 hours and 15 minutes
 
     while (time.time() - start_time) < max_run_seconds:
-
-     while state["generation"] < target_generation:
         state["generation"] += 1
         gen, sigma = state["generation"], state["sigma"]
         candidates, new_fps, new_scores = [], [], []
@@ -282,7 +280,7 @@ def main():
     conn.close()
     with open(STATE_PATH, "w") as f:
         json.dump(state, f, indent=2)
-    print(f"[GITHUB RUN] Batch complete. Reached Generation {state['generation']}. Saving vault.")
+    print(f"[GITHUB RUN] Time limit reached at Generation {state['generation']}. Saving vault.")
 
 if __name__ == "__main__":
     main()
