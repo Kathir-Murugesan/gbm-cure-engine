@@ -227,7 +227,7 @@ def main():
 
     while (time.time() - start_time) < max_run_seconds:
 
-    while state["generation"] < target_generation:
+     while state["generation"] < target_generation:
         state["generation"] += 1
         gen, sigma = state["generation"], state["sigma"]
         candidates, new_fps, new_scores = [], [], []
