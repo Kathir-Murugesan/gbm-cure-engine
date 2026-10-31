@@ -220,11 +220,12 @@ def main():
 
     seen_smiles = set(r[0] for r in conn.execute("SELECT smiles FROM discovered_molecules").fetchall())
     
-    print(f"[GITHUB RUN] Starting batch from Generation {state['generation'] + 1}...")
+    print(f"[GITHUB RUN] Starting 5.25-hour marathon from Generation {state['generation'] + 1}...")
     
-    # Run 200 generations per GitHub workflow trigger (~15 minutes)
-    generations_per_run = 200
-    target_generation = state["generation"] + generations_per_run
+    start_time = time.time()
+    max_run_seconds = 5.25 * 3600  # 5 hours and 15 minutes
+
+    while (time.time() - start_time) < max_run_seconds:
 
     while state["generation"] < target_generation:
         state["generation"] += 1
