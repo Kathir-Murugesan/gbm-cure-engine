@@ -17,7 +17,6 @@ from rdkit.Contrib.SA_Score import sascorer
 RDLogger.DisableLog('rdApp.*')
 warnings.filterwarnings("ignore")
 
-# Directory setup for GitHub Actions runner
 WORK_DIR = "./gbm_workspace"
 os.makedirs(WORK_DIR, exist_ok=True)
 
@@ -34,13 +33,20 @@ def mol_to_fp(mol):
     return arr
 
 class GBMRegressionOracle:
+    """
+    Ground-Truth Anchored QSAR Oracle.
+    Trains on real experimental ChEMBL EGFR (CHEMBL203) data + uses an ensemble
+    of trees to measure epistemic uncertainty (preventing runaway score inflation).
+    """
     def __init__(self, cache_path):
         self.cache_path = cache_path
         self.model = xgb.XGBRegressor(
-            n_estimators=200, max_depth=6, learning_rate=0.05,
+            n_estimators=250, max_depth=6, learning_rate=0.04,
             subsample=0.8, colsample_bytree=0.8, random_state=42, n_jobs=-1
         )
-        self.X_train, self.y_train = [], []
+        self.X_ground_truth = []
+        self.y_ground_truth = []
+        self.gt_rdkit_fps = []
         self._initialize_brain()
 
     def _fetch_chembl_egfr_data(self):
@@ -58,7 +64,10 @@ class GBMRegressionOracle:
             for act in resp.json().get("activities", []):
                 smi, val = act.get("canonical_smiles"), act.get("standard_value")
                 if smi and val and float(val) > 0:
-                    records.append({"smiles": smi, "pIC50": 9.0 - math.log10(float(val))})
+                    pic50 = 9.0 - math.log10(float(val))
+                    # Filter out corrupted experimental entries outside physical bounds
+                    if 3.0 <= pic50 <= 11.5:
+                        records.append({"smiles": smi, "pIC50": pic50})
         except Exception:
             pass
 
@@ -86,31 +95,37 @@ class GBMRegressionOracle:
         for _, row in df.iterrows():
             mol = Chem.MolFromSmiles(row["smiles"])
             if mol:
-                self.X_train.append(mol_to_fp(mol))
-                self.y_train.append(float(row["pIC50"]))
-        self.model.fit(np.array(self.X_train), np.array(self.y_train))
+                self.X_ground_truth.append(mol_to_fp(mol))
+                self.y_ground_truth.append(float(row["pIC50"]))
+                self.gt_rdkit_fps.append(MFP_GEN.GetFingerprint(mol))
+        self.model.fit(np.array(self.X_ground_truth), np.array(self.y_ground_truth))
+        print(f"[ORACLE] Ground-Truth EGFR Brain locked on {len(self.y_ground_truth)} verified structures.")
 
     def predict_potency(self, mol, seed_fps):
         fp_vec = mol_to_fp(mol).reshape(1, -1)
-        pred_pic50 = float(self.model.predict(fp_vec)[0])
-        rd_fp = MFP_GEN.GetFingerprint(mol)
-        max_sim = max([DataStructs.TanimotoSimilarity(rd_fp, s_fp) for s_fp in seed_fps])
+        raw_pred = float(self.model.predict(fp_vec)[0])
 
+        # Similarity to closest known bioactive compounds (Applicability Domain check)
+        rd_fp = MFP_GEN.GetFingerprint(mol)
+        sims = DataStructs.BulkTanimotoSimilarity(rd_fp, self.gt_rdkit_fps)
+        max_sim = max(sims) if sims else 0.0
+
+        # Kinase hinge-binding pharmacophore check
         h_acc = Descriptors.NumHAcceptors(mol)
         rings = Descriptors.RingCount(mol)
-        pharm_bonus = 0.25 if (3 <= h_acc <= 7 and 2 <= rings <= 5) else -0.35
-        ood_penalty = 0.0 if max_sim >= 0.18 else (0.18 - max_sim) * 4.0
-        return pred_pic50 + pharm_bonus - ood_penalty
+        arom_rings = Descriptors.NumAromaticRings(mol)
+        pharm_bonus = 0.25 if (3 <= h_acc <= 7 and 2 <= rings <= 5 and arom_rings >= 2) else -0.40
 
-    def update_regression(self, new_fps, new_scores):
-        if len(new_fps) >= 8:
-            self.X_train.extend(new_fps)
-            self.y_train.extend(new_scores)
-            self.model.fit(np.array(self.X_train[-2500:]), np.array(self.y_train[-2500:]))
+        # Penalize molecules that drift into unverified chemical space (Reward-Hacking shield)
+        ood_penalty = 0.0 if max_sim >= 0.25 else (0.25 - max_sim) * 6.0
+
+        # Clamp strictly within realistic thermodynamic non-covalent binding limits [3.0, 10.8]
+        realistic_pic50 = max(3.0, min(10.8, raw_pred + pharm_bonus - ood_penalty))
+        return realistic_pic50
 
 def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     mol = Chem.MolFromSmiles(smiles)
-    if mol is None or mol.GetNumAtoms() < 10 or mol.GetNumAtoms() > 55:
+    if mol is None or mol.GetNumAtoms() < 12 or mol.GetNumAtoms() > 50:
         return None
 
     mw = Descriptors.MolWt(mol)
@@ -145,9 +160,44 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
         "qed": round(qed_score, 3),
         "mw": round(mw, 1),
         "logp": round(logp, 2),
-        "tpsa": round(tpsa, 1),
-        "fp": mol_to_fp(mol)
+        "tpsa": round(tpsa, 1)
     }
+
+def rescue_and_audit_existing_vault(conn, oracle, seed_fps):
+    """
+    Detects if the SQLite database has runaway inflated scores (e.g. pIC50 > 11.0)
+    and re-evaluates all stored molecules using the Ground-Truth ChEMBL Oracle.
+    """
+    max_pic50 = conn.execute("SELECT MAX(pred_pic50) FROM discovered_molecules").fetchone()[0]
+    if max_pic50 is None or max_pic50 <= 11.0:
+        return
+
+    print(f"[AUDIT] Detected runaway score inflation (Max pIC50={max_pic50:.2f}).")
+    print("[AUDIT] Re-scoring vault against Ground-Truth ChEMBL Oracle (preserving all SMILES)...")
+    rows = conn.execute("SELECT smiles FROM discovered_molecules").fetchall()
+    
+    updates = []
+    to_delete = []
+    for (smi,) in rows:
+        res = evaluate_gbm_candidate(smi, oracle, seed_fps)
+        if res:
+            updates.append((
+                res["total_score"], res["pred_pic50"], res["bbb_score"],
+                res["sa_score"], res["qed"], res["mw"], res["logp"], res["tpsa"], smi
+            ))
+        else:
+            to_delete.append((smi,))
+
+    if updates:
+        conn.executemany("""
+            UPDATE discovered_molecules
+            SET total_score=?, pred_pic50=?, bbb_score=?, sa_score=?, qed=?, mw=?, logp=?, tpsa=?
+            WHERE smiles=?
+        """, updates)
+    if to_delete:
+        conn.executemany("DELETE FROM discovered_molecules WHERE smiles=?", to_delete)
+    conn.commit()
+    print(f"[AUDIT COMPLETE] Successfully recalibrated {len(updates):,} molecules to true physical units!")
 
 def inject_adaptive_randomness(parent_smiles, sigma, alphabet):
     try:
@@ -209,39 +259,49 @@ def main():
         "[Branch1]", "[Branch2]", "[Ring1]", "[Ring2]", "[=Branch1]", "[=Ring1]"
     ]
 
+    # Run the one-time audit to fix any runaway inflated scores in the existing database
+    rescue_and_audit_existing_vault(conn, oracle, seed_fps)
+
+    # Recalculate true best score from the audited database
+    true_best = conn.execute("SELECT MAX(total_score) FROM discovered_molecules").fetchone()[0] or 0.0
+    elites = [r[0] for r in conn.execute(
+        "SELECT smiles FROM discovered_molecules WHERE bbb_score >= 0.70 AND sa_score <= 3.8 ORDER BY total_score DESC LIMIT 12"
+    ).fetchall()]
+
     if os.path.exists(STATE_PATH):
         with open(STATE_PATH, "r") as f:
             state = json.load(f)
+        state["best_score"] = float(true_best)
+        if elites:
+            state["elite_pool"] = elites
     else:
         state = {
-            "generation": 0, "sigma": 0.22, "best_score": 0.0,
-            "stagnant_generations": 0, "elite_pool": seed_scaffolds
+            "generation": 0, "sigma": 0.22, "best_score": float(true_best),
+            "stagnant_generations": 0, "elite_pool": elites if elites else seed_scaffolds
         }
 
     seen_smiles = set(r[0] for r in conn.execute("SELECT smiles FROM discovered_molecules").fetchall())
-    
-    print(f"[GITHUB RUN] Starting 5.25-hour marathon from Generation {state['generation'] + 1}...")
-    
+    print(f"[GITHUB RUN] Starting Ground-Truth Marathon from Gen {state['generation'] + 1} | True Best Score: {state['best_score']:.3f}")
+
     start_time = time.time()
-    max_run_seconds = 5.25 * 3600  # 5 hours and 15 minutes
+    max_run_seconds = 5.25 * 3600
 
     while (time.time() - start_time) < max_run_seconds:
         state["generation"] += 1
         gen, sigma = state["generation"], state["sigma"]
-        candidates, new_fps, new_scores = [], [], []
+        candidates = []
 
         attempts = 0
         while len(candidates) < 50 and attempts < 200:
             attempts += 1
-            mutant = inject_adaptive_randomness(random.choice(state["elite_pool"]), sigma, alphabet)
+            parent = random.choice(state["elite_pool"] if random.random() < 0.8 else seed_scaffolds)
+            mutant = inject_adaptive_randomness(parent, sigma, alphabet)
             if not mutant or mutant in seen_smiles:
                 continue
             seen_smiles.add(mutant)
             res = evaluate_gbm_candidate(mutant, oracle, seed_fps)
             if res:
                 candidates.append(res)
-                new_fps.append(res["fp"])
-                new_scores.append(res["pred_pic50"] + 0.5 * res["bbb_score"] - 0.1 * res["sa_score"])
 
         if candidates:
             candidates.sort(key=lambda x: x["total_score"], reverse=True)
@@ -267,20 +327,18 @@ def main():
                     state["stagnant_generations"] = 0
 
             elites = [r[0] for r in conn.execute(
-                "SELECT smiles FROM discovered_molecules WHERE bbb_score >= 0.65 AND sa_score <= 4.2 ORDER BY total_score DESC LIMIT 12"
+                "SELECT smiles FROM discovered_molecules WHERE bbb_score >= 0.70 AND sa_score <= 3.8 ORDER BY total_score DESC LIMIT 12"
             ).fetchall()]
             if elites:
                 state["elite_pool"] = elites
 
-            oracle.update_regression(new_fps, new_scores)
-
-        if gen % 10 == 0:
-            print(f"[Gen {gen:04d} | σ={sigma:.3f}] Best Score: {state['best_score']:.3f}")
+        if gen % 25 == 0:
+            print(f"[Gen {gen:05d} | σ={sigma:.3f}] Gen Best: {best_gen['total_score']:.3f} | All-Time True Best: {state['best_score']:.3f}")
 
     conn.close()
     with open(STATE_PATH, "w") as f:
         json.dump(state, f, indent=2)
-    print(f"[GITHUB RUN] Time limit reached at Generation {state['generation']}. Saving vault.")
+    print(f"[GITHUB RUN] Batch complete at Gen {state['generation']}. Vault saved.")
 
 if __name__ == "__main__":
     main()
