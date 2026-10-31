@@ -1,0 +1,7 @@
+rdkit
+selfies
+xgboost
+scikit-learn
+pandas
+numpy
+requests
