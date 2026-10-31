@@ -1,0 +1,20 @@
+{
+  "generation": 200,
+  "sigma": 0.47891671449600015,
+  "best_score": 20.8578,
+  "stagnant_generations": 0,
+  "elite_pool": [
+    "CCSSc1ncnnc1Nc1cccc(C)c1",
+    "COSc1ncnnc1Nc1cccc(C)c1",
+    "CCSOc1ncnnc1Nc1cccc(C)c1",
+    "CSc1ncnnc1Nc1cccc(C)c1",
+    "CN=C=Nc1nccnc1Nc1cccc(C)c1",
+    "CC=CSc1ncnnc1Nc1cccc(C)c1",
+    "C=C=Nc1nccnc1Nc1cccc(C)c1",
+    "Cc1cccc(Nc2nncnc2SS)c1",
+    "CC=C=Nc1ncnnc1Nc1cccc(C)c1",
+    "Cc1cccc(Nc2nncnc2OSCCl)c1",
+    "Cc1cccc(Nc2nccnc2C)c1",
+    "CSNc1ncnnc1Nc1cccc(C)c1"
+  ]
+}
