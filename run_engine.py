@@ -24,6 +24,9 @@ DB_PATH = os.path.join(WORK_DIR, "gbm_vault.sqlite")
 STATE_PATH = os.path.join(WORK_DIR, "adaptive_state.json")
 CACHE_PATH = os.path.join(WORK_DIR, "egfr_training_cache.csv")
 
+# Maximum molecules to keep in SQLite so the file NEVER exceeds ~10 MB (GitHub limit is 100 MB)
+MAX_VAULT_SIZE = 25000
+
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
 def mol_to_fp(mol):
@@ -33,11 +36,6 @@ def mol_to_fp(mol):
     return arr
 
 class GBMRegressionOracle:
-    """
-    Ground-Truth Anchored QSAR Oracle.
-    Trains on real experimental ChEMBL EGFR (CHEMBL203) data + uses an ensemble
-    of trees to measure epistemic uncertainty (preventing runaway score inflation).
-    """
     def __init__(self, cache_path):
         self.cache_path = cache_path
         self.model = xgb.XGBRegressor(
@@ -65,7 +63,6 @@ class GBMRegressionOracle:
                 smi, val = act.get("canonical_smiles"), act.get("standard_value")
                 if smi and val and float(val) > 0:
                     pic50 = 9.0 - math.log10(float(val))
-                    # Filter out corrupted experimental entries outside physical bounds
                     if 3.0 <= pic50 <= 11.5:
                         records.append({"smiles": smi, "pIC50": pic50})
         except Exception:
@@ -105,21 +102,16 @@ class GBMRegressionOracle:
         fp_vec = mol_to_fp(mol).reshape(1, -1)
         raw_pred = float(self.model.predict(fp_vec)[0])
 
-        # Similarity to closest known bioactive compounds (Applicability Domain check)
         rd_fp = MFP_GEN.GetFingerprint(mol)
         sims = DataStructs.BulkTanimotoSimilarity(rd_fp, self.gt_rdkit_fps)
         max_sim = max(sims) if sims else 0.0
 
-        # Kinase hinge-binding pharmacophore check
         h_acc = Descriptors.NumHAcceptors(mol)
         rings = Descriptors.RingCount(mol)
         arom_rings = Descriptors.NumAromaticRings(mol)
         pharm_bonus = 0.25 if (3 <= h_acc <= 7 and 2 <= rings <= 5 and arom_rings >= 2) else -0.40
 
-        # Penalize molecules that drift into unverified chemical space (Reward-Hacking shield)
         ood_penalty = 0.0 if max_sim >= 0.25 else (0.25 - max_sim) * 6.0
-
-        # Clamp strictly within realistic thermodynamic non-covalent binding limits [3.0, 10.8]
         realistic_pic50 = max(3.0, min(10.8, raw_pred + pharm_bonus - ood_penalty))
         return realistic_pic50
 
@@ -163,41 +155,52 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
         "tpsa": round(tpsa, 1)
     }
 
-def rescue_and_audit_existing_vault(conn, oracle, seed_fps):
+def rescue_audit_and_prune_vault(conn, oracle, seed_fps):
     """
-    Detects if the SQLite database has runaway inflated scores (e.g. pIC50 > 11.0)
-    and re-evaluates all stored molecules using the Ground-Truth ChEMBL Oracle.
+    1. Audits any runaway inflated scores (pIC50 > 11.0).
+    2. Prunes database to the top 25,000 candidates and runs VACUUM so the file stays < 10 MB.
     """
     max_pic50 = conn.execute("SELECT MAX(pred_pic50) FROM discovered_molecules").fetchone()[0]
-    if max_pic50 is None or max_pic50 <= 11.0:
-        return
+    if max_pic50 is not None and max_pic50 > 11.0:
+        print(f"[AUDIT] Fixing inflated scores (Max pIC50={max_pic50:.2f})...")
+        rows = conn.execute("SELECT smiles FROM discovered_molecules").fetchall()
+        updates, to_delete = [], []
+        for (smi,) in rows:
+            res = evaluate_gbm_candidate(smi, oracle, seed_fps)
+            if res:
+                updates.append((
+                    res["total_score"], res["pred_pic50"], res["bbb_score"],
+                    res["sa_score"], res["qed"], res["mw"], res["logp"], res["tpsa"], smi
+                ))
+            else:
+                to_delete.append((smi,))
+        if updates:
+            conn.executemany("""
+                UPDATE discovered_molecules
+                SET total_score=?, pred_pic50=?, bbb_score=?, sa_score=?, qed=?, mw=?, logp=?, tpsa=?
+                WHERE smiles=?
+            """, updates)
+        if to_delete:
+            conn.executemany("DELETE FROM discovered_molecules WHERE smiles=?", to_delete)
+        conn.commit()
+        print(f"[AUDIT COMPLETE] Recalibrated {len(updates):,} molecules.")
 
-    print(f"[AUDIT] Detected runaway score inflation (Max pIC50={max_pic50:.2f}).")
-    print("[AUDIT] Re-scoring vault against Ground-Truth ChEMBL Oracle (preserving all SMILES)...")
-    rows = conn.execute("SELECT smiles FROM discovered_molecules").fetchall()
-    
-    updates = []
-    to_delete = []
-    for (smi,) in rows:
-        res = evaluate_gbm_candidate(smi, oracle, seed_fps)
-        if res:
-            updates.append((
-                res["total_score"], res["pred_pic50"], res["bbb_score"],
-                res["sa_score"], res["qed"], res["mw"], res["logp"], res["tpsa"], smi
-            ))
-        else:
-            to_delete.append((smi,))
-
-    if updates:
-        conn.executemany("""
-            UPDATE discovered_molecules
-            SET total_score=?, pred_pic50=?, bbb_score=?, sa_score=?, qed=?, mw=?, logp=?, tpsa=?
-            WHERE smiles=?
-        """, updates)
-    if to_delete:
-        conn.executemany("DELETE FROM discovered_molecules WHERE smiles=?", to_delete)
-    conn.commit()
-    print(f"[AUDIT COMPLETE] Successfully recalibrated {len(updates):,} molecules to true physical units!")
+    # Prune bottom molecules if count > MAX_VAULT_SIZE to keep SQLite file small for GitHub
+    total_rows = conn.execute("SELECT COUNT(*) FROM discovered_molecules").fetchone()[0]
+    if total_rows > MAX_VAULT_SIZE:
+        print(f"[PRUNE] Compressing vault from {total_rows:,} to top {MAX_VAULT_SIZE:,} elites...")
+        conn.execute(f"""
+            DELETE FROM discovered_molecules 
+            WHERE smiles NOT IN (
+                SELECT smiles FROM discovered_molecules 
+                ORDER BY total_score DESC LIMIT {MAX_VAULT_SIZE}
+            )
+        """)
+        conn.commit()
+        conn.execute("VACUUM")
+        conn.commit()
+    size_mb = os.path.getsize(DB_PATH) / (1024 * 1024)
+    print(f"[VAULT SIZE] SQLite database is {size_mb:.2f} MB (GitHub limit: 100.00 MB)")
 
 def inject_adaptive_randomness(parent_smiles, sigma, alphabet):
     try:
@@ -259,10 +262,9 @@ def main():
         "[Branch1]", "[Branch2]", "[Ring1]", "[Ring2]", "[=Branch1]", "[=Ring1]"
     ]
 
-    # Run the one-time audit to fix any runaway inflated scores in the existing database
-    rescue_and_audit_existing_vault(conn, oracle, seed_fps)
+    initial_db_count = conn.execute("SELECT COUNT(*) FROM discovered_molecules").fetchone()[0]
+    rescue_audit_and_prune_vault(conn, oracle, seed_fps)
 
-    # Recalculate true best score from the audited database
     true_best = conn.execute("SELECT MAX(total_score) FROM discovered_molecules").fetchone()[0] or 0.0
     elites = [r[0] for r in conn.execute(
         "SELECT smiles FROM discovered_molecules WHERE bbb_score >= 0.70 AND sa_score <= 3.8 ORDER BY total_score DESC LIMIT 12"
@@ -272,19 +274,22 @@ def main():
         with open(STATE_PATH, "r") as f:
             state = json.load(f)
         state["best_score"] = float(true_best)
+        state["total_evaluated"] = max(state.get("total_evaluated", 0), initial_db_count)
         if elites:
             state["elite_pool"] = elites
     else:
         state = {
             "generation": 0, "sigma": 0.22, "best_score": float(true_best),
+            "total_evaluated": initial_db_count,
             "stagnant_generations": 0, "elite_pool": elites if elites else seed_scaffolds
         }
 
     seen_smiles = set(r[0] for r in conn.execute("SELECT smiles FROM discovered_molecules").fetchall())
-    print(f"[GITHUB RUN] Starting Ground-Truth Marathon from Gen {state['generation'] + 1} | True Best Score: {state['best_score']:.3f}")
+    print(f"[GITHUB RUN] Starting from Gen {state['generation'] + 1} | Total Evaluated: {state['total_evaluated']:,} | True Best: {state['best_score']:.3f}")
 
     start_time = time.time()
-    max_run_seconds = 5.25 * 3600  # 5 hours and 15 minutes
+    # 👇 Set to 5 minutes (5 * 60) for this rescue run! Change to (2.5 * 3600) after verifying!
+    max_run_seconds = 5 * 60
 
     while (time.time() - start_time) < max_run_seconds:
         state["generation"] += 1
@@ -302,12 +307,13 @@ def main():
             res = evaluate_gbm_candidate(mutant, oracle, seed_fps)
             if res:
                 candidates.append(res)
+                state["total_evaluated"] += 1
 
         if candidates:
             candidates.sort(key=lambda x: x["total_score"], reverse=True)
             best_gen = candidates[0]
 
-            for c in candidates[:15]:
+            for c in candidates[:10]:
                 conn.execute("""
                     INSERT OR IGNORE INTO discovered_molecules
                     (smiles, generation, total_score, pred_pic50, bbb_score, sa_score, qed, mw, logp, tpsa, sigma_used)
@@ -333,12 +339,15 @@ def main():
                 state["elite_pool"] = elites
 
         if gen % 25 == 0:
-            print(f"[Gen {gen:05d} | σ={sigma:.3f}] Gen Best: {best_gen['total_score']:.3f} | All-Time True Best: {state['best_score']:.3f}")
+            print(f"[Gen {gen:05d} | σ={sigma:.3f}] Gen Best: {best_gen['total_score']:.3f} | All-Time Best: {state['best_score']:.3f}")
 
+    # Final prune & vacuum before git commit so file size is guaranteed < 10 MB
+    rescue_audit_and_prune_vault(conn, oracle, seed_fps)
     conn.close()
+
     with open(STATE_PATH, "w") as f:
         json.dump(state, f, indent=2)
-    print(f"[GITHUB RUN] Batch complete at Gen {state['generation']}. Vault saved.")
+    print(f"[GITHUB RUN] Complete at Gen {state['generation']} | Total Evaluated: {state['total_evaluated']:,}. Vault saved.")
 
 if __name__ == "__main__":
     main()
