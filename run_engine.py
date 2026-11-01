@@ -284,7 +284,7 @@ def main():
     print(f"[GITHUB RUN] Starting Ground-Truth Marathon from Gen {state['generation'] + 1} | True Best Score: {state['best_score']:.3f}")
 
     start_time = time.time()
-    max_run_seconds = 5 * 60
+    max_run_seconds = 5.25 * 3600  # 5 hours and 15 minutes
 
     while (time.time() - start_time) < max_run_seconds:
         state["generation"] += 1
