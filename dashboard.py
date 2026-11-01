@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 import pandas as pd
 import streamlit as st
@@ -26,15 +27,14 @@ else:
         with open(STATE_PATH, "r") as f:
             state_data = json.load(f)
             total_mols = max(vault_mols, state_data.get("total_evaluated", vault_mols))
-            
+
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Candidates Evaluated", f"{total_mols:,}")
-    c2.metric("Highest Unified Score", f"{best_score:.3f}")
+    c2.metric("Highest Unified Score", f"{best_score:.3f}" if best_score else "0.000")
     c3.metric("Golden Candidates (High BBB & Potency)", f"{golden_mols:,}")
-    
+
     st.divider()
-    
-    # Fetch the top 12 molecules for visualization
+
     top_candidates = pd.read_sql_query("""
         SELECT generation, total_score, pred_pic50, bbb_score, sa_score, smiles 
         FROM discovered_molecules 
@@ -44,19 +44,17 @@ else:
     conn.close()
 
     st.subheader("🏆 Top Discovered Scaffolds")
-    
-    # Create a visual grid of the top 12 molecules
+
     cols = st.columns(4)
     for index, row in top_candidates.iterrows():
         mol = Chem.MolFromSmiles(row["smiles"])
         if mol:
-            # Generate a 2D image of the molecule
             img = Draw.MolToImage(mol, size=(300, 300))
             with cols[index % 4]:
                 st.image(img, use_container_width=True)
                 st.markdown(f"**Rank {index + 1}** (Gen {row['generation']})")
                 st.markdown(f"Score: `{row['total_score']:.2f}` | pIC50: `{row['pred_pic50']:.2f}` | BBB: `{row['bbb_score']:.2f}`")
-    
+
     st.divider()
     st.subheader("📊 Complete Leaderboard Data")
     st.dataframe(top_candidates, use_container_width=True)
