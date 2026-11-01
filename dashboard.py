@@ -11,19 +11,22 @@ st.title("🧬 Glioblastoma De Novo Drug Discovery")
 st.caption("Live telemetry and molecular visualization for the autonomous GitHub Actions engine.")
 
 DB_PATH = "gbm_workspace/gbm_vault.sqlite"
+STATE_PATH = "gbm_workspace/adaptive_state.json"
 
 if not os.path.exists(DB_PATH):
     st.warning("Database not found. Waiting for the first GitHub Action batch to complete...")
 else:
-    # Connect to the SQLite vault
     conn = sqlite3.connect(DB_PATH)
-    
-    # Fetch high-level metrics
-    total_mols = pd.read_sql_query("SELECT COUNT(*) FROM discovered_molecules", conn).iloc[0, 0]
+    vault_mols = pd.read_sql_query("SELECT COUNT(*) FROM discovered_molecules", conn).iloc[0, 0]
     best_score = pd.read_sql_query("SELECT MAX(total_score) FROM discovered_molecules", conn).iloc[0, 0]
     golden_mols = pd.read_sql_query("SELECT COUNT(*) FROM discovered_molecules WHERE pred_pic50 >= 8.0 AND bbb_score >= 0.75", conn).iloc[0, 0]
-    
-    # Display top metrics
+
+    total_mols = vault_mols
+    if os.path.exists(STATE_PATH):
+        with open(STATE_PATH, "r") as f:
+            state_data = json.load(f)
+            total_mols = max(vault_mols, state_data.get("total_evaluated", vault_mols))
+            
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Candidates Evaluated", f"{total_mols:,}")
     c2.metric("Highest Unified Score", f"{best_score:.3f}")
