@@ -24,9 +24,7 @@ DB_PATH = os.path.join(WORK_DIR, "gbm_vault.sqlite")
 STATE_PATH = os.path.join(WORK_DIR, "adaptive_state.json")
 CACHE_PATH = os.path.join(WORK_DIR, "egfr_training_cache.csv")
 
-# Hard limit to prevent GitHub's 100MB file limit crash
 MAX_VAULT_SIZE = 25000
-
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
 def mol_to_fp(mol):
@@ -53,14 +51,15 @@ class GBMRegressionOracle:
 
         url = (
             "https://www.ebi.ac.uk/chembl/api/data/activity.json?"
-            "target_chembl_id=CHEMBL203&standard_type=IC50&standard_units=nM"
-            "&standard_relation=%3D&limit=1000"
+            "target_chembl_id=CHEMBL203&standard_type=IC50"
+            "&standard_units=nM&standard_relation=%3D&limit=1000"
         )
         records = []
         try:
             resp = requests.get(url, timeout=15)
             for act in resp.json().get("activities", []):
-                smi, val = act.get("canonical_smiles"), act.get("standard_value")
+                smi = act.get("canonical_smiles")
+                val = act.get("standard_value")
                 if smi and val and float(val) > 0:
                     pic50 = 9.0 - math.log10(float(val))
                     if 3.0 <= pic50 <= 11.5:
@@ -73,9 +72,7 @@ class GBMRegressionOracle:
             ("COCCOc1cc2ncnc(Nc3cccc(C#C)c3)c2cc1OCCOC", 8.15),
             ("COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1", 7.85),
             ("C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C", 8.70),
-            ("CS(=O)(=O)CCNCc1ccc(-c2ccc3ncnc(Nc4ccc(OCc5cccc(F)c5)c(Cl)c4)c3c2)o1", 7.92),
             ("Nc1nc(OCC2CCCCC2)c2nc[nH]c2n1", 6.80),
-            ("CN1CCN(Cc2ccc(NC(=O)c3ccc(C)c(Nc4nccc(-c5cccnc5)n4)c3)cc2)CC1", 6.40),
             ("c1ccc2c(c1)ccc1ccccc12", 4.10),
             ("CC(=O)Oc1ccccc1C(=O)O", 3.50),
             ("CN1C=NC2=C1C(=O)N(C(=O)N2C)C", 3.80)
@@ -95,7 +92,10 @@ class GBMRegressionOracle:
                 self.X_ground_truth.append(mol_to_fp(mol))
                 self.y_ground_truth.append(float(row["pIC50"]))
                 self.gt_rdkit_fps.append(MFP_GEN.GetFingerprint(mol))
-        self.model.fit(np.array(self.X_ground_truth), np.array(self.y_ground_truth))
+        self.model.fit(
+            np.array(self.X_ground_truth),
+            np.array(self.y_ground_truth)
+        )
 
     def predict_potency(self, mol, seed_fps):
         fp_vec = mol_to_fp(mol).reshape(1, -1)
@@ -107,13 +107,13 @@ class GBMRegressionOracle:
 
         h_acc = Descriptors.NumHAcceptors(mol)
         rings = Descriptors.RingCount(mol)
-        arom_rings = Descriptors.NumAromaticRings(mol)
-        pharm_bonus = 0.25 if (3 <= h_acc <= 7 and 2 <= rings <= 5 and arom_rings >= 2) else -0.40
+        arom = Descriptors.NumAromaticRings(mol)
+        cond = (3 <= h_acc <= 7 and 2 <= rings <= 5 and arom >= 2)
+        pharm_bonus = 0.25 if cond else -0.40
 
         ood_penalty = 0.0 if max_sim >= 0.25 else (0.25 - max_sim) * 6.0
-        # HARD PHYSICS CAP: Cannot exceed 10.8
-        realistic_pic50 = max(3.0, min(10.8, raw_pred + pharm_bonus - ood_penalty))
-        return realistic_pic50
+        realistic = max(3.0, min(10.8, raw_pred + pharm_bonus - ood_penalty))
+        return realistic
 
 def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     mol = Chem.MolFromSmiles(smiles)
@@ -129,7 +129,10 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     bbb_logp = max(0.0, 1.0 - abs(logp - 2.75) / 2.5)
     bbb_tpsa = max(0.0, min(1.0, (105.0 - tpsa) / 65.0))
     bbb_hbd = max(0.0, min(1.0, (3.0 - hbd) / 2.0))
-    bbb_score = 0.30 * bbb_tpsa + 0.30 * bbb_logp + 0.25 * bbb_mw + 0.15 * bbb_hbd
+    bbb_score = (
+        0.30 * bbb_tpsa + 0.30 * bbb_logp +
+        0.25 * bbb_mw + 0.15 * bbb_hbd
+    )
 
     try:
         sa_score = sascorer.calculateScore(mol)
@@ -141,7 +144,10 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     pred_pic50 = oracle.predict_potency(mol, seed_fps)
 
     sa_penalty = max(0.0, (sa_score - 3.2) * 0.45)
-    total_score = (1.35 * pred_pic50) + (3.00 * bbb_score) + (1.50 * qed_score) - sa_penalty - herg_risk
+    total_score = (
+        (1.35 * pred_pic50) + (3.00 * bbb_score) +
+        (1.50 * qed_score) - sa_penalty - herg_risk
+    )
 
     return {
         "smiles": Chem.MolToSmiles(mol, canonical=True),
@@ -156,17 +162,17 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     }
 
 def instant_rescue_and_prune(conn):
-    """ Instantly deletes hallucinated scores and prunes the DB to prevent GitHub crashes. """
-    max_pic50 = conn.execute("SELECT MAX(pred_pic50) FROM discovered_molecules").fetchone()[0]
+    q_max = "SELECT MAX(pred_pic50) FROM discovered_molecules"
+    max_pic50 = conn.execute(q_max).fetchone()[0]
     if max_pic50 is not None and max_pic50 > 11.0:
-        print(f"[AUDIT] Detected impossible physics (pIC50={max_pic50:.2f}). Nuking corrupted data...")
+        print(f"[AUDIT] Nuking corrupted scores (max={max_pic50:.2f})...")
         conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 11.0")
         conn.commit()
-        print("[AUDIT] Corrupted molecules deleted instantly.")
 
-    total_rows = conn.execute("SELECT COUNT(*) FROM discovered_molecules").fetchone()[0]
+    q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
+    total_rows = conn.execute(q_cnt).fetchone()[0]
     if total_rows > MAX_VAULT_SIZE:
-        print(f"[PRUNE] Trimming vault to top {MAX_VAULT_SIZE} to ensure small file size...")
+        print(f"[PRUNE] Trimming vault to top {MAX_VAULT_SIZE}...")
         conn.execute(f"""
             DELETE FROM discovered_molecules 
             WHERE smiles NOT IN (
@@ -175,8 +181,7 @@ def instant_rescue_and_prune(conn):
             )
         """)
         conn.commit()
-    
-    print("[VAULT] Running compression (VACUUM)...")
+
     conn.execute("VACUUM")
     conn.commit()
 
@@ -192,11 +197,13 @@ def inject_adaptive_randomness(parent_smiles, sigma, alphabet):
     for _ in range(num_mutations):
         r = random.random()
         if r < (0.35 * sigma) and len(tokens) < 48:
-            tokens.insert(random.randint(0, len(tokens)), random.choice(alphabet))
+            idx = random.randint(0, len(tokens))
+            tokens.insert(idx, random.choice(alphabet))
         elif r < (0.55 * sigma) and len(tokens) > 12:
             tokens.pop(random.randint(0, len(tokens) - 1))
         else:
-            tokens[random.randint(0, len(tokens) - 1)] = random.choice(alphabet)
+            idx = random.randint(0, len(tokens) - 1)
+            tokens[idx] = random.choice(alphabet)
 
     try:
         mol = Chem.MolFromSmiles(sf.decoder("".join(tokens)))
@@ -227,19 +234,122 @@ def main():
     conn.commit()
 
     oracle = GBMRegressionOracle(CACHE_PATH)
-    
+
     seed_scaffolds = [
         "Cn1nnc2c(C(N)=O)ncn2c1=O",
         "COCCOc1cc2ncnc(Nc3cccc(C#C)c3)c2cc1OCCOC",
         "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
         "C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C"
     ]
-    seed_fps = [MFP_GEN.GetFingerprint(Chem.MolFromSmiles(s)) for s in seed_scaffolds]
-    alphabet = ["[C]", "[=C]", "[#C]", "[N]", "[=N]", "[O]", "[=O]", "[F]", "[Cl]", "[S]", "[Branch1]", "[Branch2]", "[Ring1]", "[Ring2]", "[=Branch1]", "[=Ring1]"]
+    seed_fps = [
+        MFP_GEN.GetFingerprint(Chem.MolFromSmiles(s))
+        for s in seed_scaffolds
+    ]
+    alphabet = [
+        "[C]", "[=C]", "[#C]", "[N]", "[=N]", "[O]", "[=O]",
+        "[F]", "[Cl]", "[S]", "[Branch1]", "[Branch2]",
+        "[Ring1]", "[Ring2]", "[=Branch1]", "[=Ring1]"
+    ]
 
-    initial_db_count = conn.execute("SELECT COUNT(*) FROM discovered_molecules").fetchone()[0]
-    
-    # Run instant cleanup
+    q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
+    initial_db_count = conn.execute(q_cnt).fetchone()[0]
+
     instant_rescue_and_prune(conn)
 
-    true_best = conn.execute("SELECT MAX(total_score) FROM discovered
+    q_best = "SELECT MAX(total_score) FROM discovered_molecules"
+    true_best = conn.execute(q_best).fetchone()[0] or 0.0
+
+    q_elites = (
+        "SELECT smiles FROM discovered_molecules "
+        "WHERE bbb_score >= 0.70 AND sa_score <= 3.8 "
+        "ORDER BY total_score DESC LIMIT 12"
+    )
+    elites = [r[0] for r in conn.execute(q_elites).fetchall()]
+
+    if os.path.exists(STATE_PATH):
+        with open(STATE_PATH, "r") as f:
+            state = json.load(f)
+        state["best_score"] = float(true_best)
+        prev_eval = state.get("total_evaluated", 0)
+        state["total_evaluated"] = max(prev_eval, initial_db_count)
+        if elites:
+            state["elite_pool"] = elites
+    else:
+        state = {
+            "generation": 0,
+            "sigma": 0.22,
+            "best_score": float(true_best),
+            "total_evaluated": initial_db_count,
+            "stagnant_generations": 0,
+            "elite_pool": elites if elites else seed_scaffolds
+        }
+
+    q_all = "SELECT smiles FROM discovered_molecules"
+    seen_smiles = set(r[0] for r in conn.execute(q_all).fetchall())
+    print(f"[RUN] Starting 10m Batch | Best: {state['best_score']:.3f}")
+
+    start_time = time.time()
+    max_run_seconds = 10 * 60
+
+    while (time.time() - start_time) < max_run_seconds:
+        state["generation"] += 1
+        gen, sigma = state["generation"], state["sigma"]
+        candidates = []
+
+        attempts = 0
+        while len(candidates) < 50 and attempts < 200:
+            attempts += 1
+            pool = state["elite_pool"] if random.random() < 0.8 else seed_scaffolds
+            parent = random.choice(pool)
+            mutant = inject_adaptive_randomness(parent, sigma, alphabet)
+            if not mutant or mutant in seen_smiles:
+                continue
+            seen_smiles.add(mutant)
+            res = evaluate_gbm_candidate(mutant, oracle, seed_fps)
+            if res:
+                candidates.append(res)
+                state["total_evaluated"] += 1
+
+        if candidates:
+            candidates.sort(key=lambda x: x["total_score"], reverse=True)
+            best_gen = candidates[0]
+
+            for c in candidates[:10]:
+                conn.execute("""
+                    INSERT OR IGNORE INTO discovered_molecules
+                    (smiles, generation, total_score, pred_pic50,
+                     bbb_score, sa_score, qed, mw, logp, tpsa, sigma_used)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    c["smiles"], gen, c["total_score"], c["pred_pic50"],
+                    c["bbb_score"], c["sa_score"], c["qed"], c["mw"],
+                    c["logp"], c["tpsa"], round(sigma, 4)
+                ))
+            conn.commit()
+
+            if best_gen["total_score"] > state["best_score"]:
+                state["best_score"] = best_gen["total_score"]
+                state["stagnant_generations"] = 0
+                state["sigma"] = max(0.06, sigma * 0.88)
+            else:
+                state["stagnant_generations"] += 1
+                if state["stagnant_generations"] >= 4:
+                    state["sigma"] = min(0.48, sigma * 1.25)
+                    state["stagnant_generations"] = 0
+
+            elites = [r[0] for r in conn.execute(q_elites).fetchall()]
+            if elites:
+                state["elite_pool"] = elites
+
+        if gen % 10 == 0 and candidates:
+            print(f"[Gen {gen:05d}] Best: {state['best_score']:.3f}")
+
+    instant_rescue_and_prune(conn)
+    conn.close()
+
+    with open(STATE_PATH, "w") as f:
+        json.dump(state, f, indent=2)
+    print("[GITHUB RUN] Complete. Vault saved.")
+
+if __name__ == "__main__":
+    main()
