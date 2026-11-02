@@ -7,3 +7,4 @@ numpy
 requests
 streamlit
 Pillow
+py3Dmol
