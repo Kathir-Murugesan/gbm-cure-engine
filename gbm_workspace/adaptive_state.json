@@ -1,21 +1,21 @@
 {
-  "generation": 14032,
-  "sigma": 0.48,
-  "best_score": 19.0064,
-  "stagnant_generations": 3,
+  "generation": 82825,
+  "sigma": 0.45,
+  "best_score": 15.6075,
+  "stagnant_generations": 0,
   "elite_pool": [
-    "Cc1cccc(Nc2nccnc2F)c1",
-    "Cc1cccc(NC2=COCC=C2)c1",
-    "Cc1cccc(Nc2nccnc2Cl)c1",
-    "S=Cc1ncnnc1Nc1cccc(Cl)c1",
-    "ClS#COc1ncnnc1Nc1ccccc1",
-    "C=CC=C1c2cnnc(Nc3ccccc3)c21",
-    "C#Cc1cccnc1NC1=CC=NC1=CCC",
-    "Cc1cccc(NC2=C3CC32)c1",
-    "CCC=Cc1nnnnc1Nc1cccc(Cl)c1",
-    "C=Cc1cccnc1NC1=CC=NCC=C1",
-    "Cc1cccc(Nc2nccnc2C=S)c1",
-    "CN=Cc1cccnc1NC1=CCCC(Cl)=C1"
+    "CN(C)CC1=Cc2c(Nc3cccc(F)c3)ncnc21",
+    "CN1C=C1Cc1ncnc(Nc2cccc(F)c2)c1F",
+    "C#Cc1cccc(Nc2ncnc(CC3=CN3C)c2C)c1",
+    "Cc1cccc(Nc2ncnc3c2C=C3CN(C)C)c1",
+    "COCC=C1c2ncnc(Nc3cccc(F)c3)c2N1C",
+    "CN(C)CC#CC1=Cc2c(Nc3cccc(F)c3)ncnc21",
+    "Cc1ncnc(Nc2cccc(F)c2)c1CC1=CN1C",
+    "Cc1c(CC2=CN2C)ncnc1Nc1cccc(F)c1",
+    "Cc1cccc(Nc2ncnc(CC3=CN3C)c2F)c1",
+    "C#Cc1cccc(Nc2ncnc3c2C=C3CN(C)C)c1",
+    "CN(C)CCC1c2ncnc(Nc3cccc(F)c3)c21",
+    "C#Cc1cccc(Nc2ncnc3c2C=C3COC)c1"
   ],
-  "total_evaluated": 292415
+  "total_evaluated": 708460
 }
