@@ -27,11 +27,33 @@ CACHE_PATH = os.path.join(WORK_DIR, "egfr_training_cache.csv")
 MAX_VAULT_SIZE = 25000
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
+# Substructure filters to block unstable/toxic warheads (PAINS & reactive groups)
+FORBIDDEN_SMARTS = [
+    Chem.MolFromSmarts("[S,s]#[*,#1]"),       # Hypervalent sulfur triple bonds (S#C)
+    Chem.MolFromSmarts("[CX3]=[SX1]"),        # Unstable thioaldehydes/thioketones (S=C)
+    Chem.MolFromSmarts("[OX2][OX2]"),         # Peroxides (O-O)
+    Chem.MolFromSmarts("[NX3,NX2][F,Cl,Br]"), # Reactive N-halides (N-Cl, N-F)
+    Chem.MolFromSmarts("[OX2][F,Cl,Br]"),     # Hypohalites (O-F, O-Cl)
+    Chem.MolFromSmarts("[C,c]=[C,c]=[C,c]"),  # Unstable allenes (C=C=C)
+]
+
 def mol_to_fp(mol):
     fp = MFP_GEN.GetFingerprint(mol)
     arr = np.zeros((2048,), dtype=np.float32)
     DataStructs.ConvertToNumpyArray(fp, arr)
     return arr
+
+def passes_medicinal_chemistry_filters(mol):
+    if mol is None:
+        return False
+    num_atoms = mol.GetNumAtoms()
+    # True small-molecule kinase inhibitors require 20 to 42 heavy atoms
+    if num_atoms < 20 or num_atoms > 42:
+        return False
+    for pattern in FORBIDDEN_SMARTS:
+        if pattern is not None and mol.HasSubstructMatch(pattern):
+            return False
+    return True
 
 class GBMRegressionOracle:
     def __init__(self, cache_path):
@@ -62,7 +84,7 @@ class GBMRegressionOracle:
                 val = act.get("standard_value")
                 if smi and val and float(val) > 0:
                     pic50 = 9.0 - math.log10(float(val))
-                    if 3.0 <= pic50 <= 11.5:
+                    if 3.0 <= pic50 <= 10.5:
                         records.append({"smiles": smi, "pIC50": pic50})
         except Exception:
             pass
@@ -108,16 +130,16 @@ class GBMRegressionOracle:
         h_acc = Descriptors.NumHAcceptors(mol)
         rings = Descriptors.RingCount(mol)
         arom = Descriptors.NumAromaticRings(mol)
-        cond = (3 <= h_acc <= 7 and 2 <= rings <= 5 and arom >= 2)
-        pharm_bonus = 0.25 if cond else -0.40
+        cond = (3 <= h_acc <= 7 and 3 <= rings <= 5 and arom >= 2)
+        pharm_bonus = 0.25 if cond else -0.45
 
-        ood_penalty = 0.0 if max_sim >= 0.25 else (0.25 - max_sim) * 6.0
-        realistic = max(3.0, min(10.8, raw_pred + pharm_bonus - ood_penalty))
+        ood_penalty = 0.0 if max_sim >= 0.28 else (0.28 - max_sim) * 6.5
+        realistic = max(3.0, min(9.8, raw_pred + pharm_bonus - ood_penalty))
         return realistic
 
 def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     mol = Chem.MolFromSmiles(smiles)
-    if mol is None or mol.GetNumAtoms() < 12 or mol.GetNumAtoms() > 50:
+    if not passes_medicinal_chemistry_filters(mol):
         return None
 
     mw = Descriptors.MolWt(mol)
@@ -125,9 +147,9 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     tpsa = Descriptors.TPSA(mol)
     hbd = Descriptors.NumHDonors(mol)
 
-    bbb_mw = max(0.0, min(1.0, (500.0 - mw) / 150.0))
-    bbb_logp = max(0.0, 1.0 - abs(logp - 2.75) / 2.5)
-    bbb_tpsa = max(0.0, min(1.0, (105.0 - tpsa) / 65.0))
+    bbb_mw = max(0.0, min(1.0, (480.0 - mw) / 140.0))
+    bbb_logp = max(0.0, 1.0 - abs(logp - 2.8) / 2.2)
+    bbb_tpsa = max(0.0, min(1.0, (100.0 - tpsa) / 60.0))
     bbb_hbd = max(0.0, min(1.0, (3.0 - hbd) / 2.0))
     bbb_score = (
         0.30 * bbb_tpsa + 0.30 * bbb_logp +
@@ -139,11 +161,14 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     except Exception:
         sa_score = 6.0
 
+    if sa_score > 4.2:
+        return None
+
     qed_score = QED.qed(mol)
-    herg_risk = max(0.0, (logp - 4.2) * 0.8) if logp > 4.2 else 0.0
+    herg_risk = max(0.0, (logp - 4.0) * 0.8) if logp > 4.0 else 0.0
     pred_pic50 = oracle.predict_potency(mol, seed_fps)
 
-    sa_penalty = max(0.0, (sa_score - 3.2) * 0.45)
+    sa_penalty = max(0.0, (sa_score - 3.0) * 0.50)
     total_score = (
         (1.35 * pred_pic50) + (3.00 * bbb_score) +
         (1.50 * qed_score) - sa_penalty - herg_risk
@@ -161,18 +186,44 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
         "tpsa": round(tpsa, 1)
     }
 
-def instant_rescue_and_prune(conn):
+def clean_and_recalibrate_vault(conn, oracle, seed_fps):
+    # Wipe any remaining uncalibrated scores from the old reward-hacking run (> 9.8)
     q_max = "SELECT MAX(pred_pic50) FROM discovered_molecules"
     max_pic50 = conn.execute(q_max).fetchone()[0]
-    if max_pic50 is not None and max_pic50 > 11.0:
-        print(f"[AUDIT] Nuking corrupted scores (max={max_pic50:.2f})...")
-        conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 11.0")
+    if max_pic50 is not None and max_pic50 > 9.85:
+        print(f"[AUDIT] Purging legacy inflated entries (max={max_pic50:.2f})...")
+        conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 9.85")
+        conn.commit()
+
+        # Re-verify remaining top entries against medicinal chemistry filters
+        rows = conn.execute("SELECT smiles FROM discovered_molecules").fetchall()
+        updates, to_del = [], []
+        for (smi,) in rows:
+            res = evaluate_gbm_candidate(smi, oracle, seed_fps)
+            if res:
+                updates.append((
+                    res["total_score"], res["pred_pic50"], res["bbb_score"],
+                    res["sa_score"], res["qed"], res["mw"], res["logp"],
+                    res["tpsa"], smi
+                ))
+            else:
+                to_del.append((smi,))
+        if to_del:
+            conn.executemany(
+                "DELETE FROM discovered_molecules WHERE smiles=?", to_del
+            )
+        if updates:
+            conn.executemany("""
+                UPDATE discovered_molecules
+                SET total_score=?, pred_pic50=?, bbb_score=?, sa_score=?,
+                    qed=?, mw=?, logp=?, tpsa=?
+                WHERE smiles=?
+            """, updates)
         conn.commit()
 
     q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
     total_rows = conn.execute(q_cnt).fetchone()[0]
     if total_rows > MAX_VAULT_SIZE:
-        print(f"[PRUNE] Trimming vault to top {MAX_VAULT_SIZE}...")
         conn.execute(f"""
             DELETE FROM discovered_molecules 
             WHERE smiles NOT IN (
@@ -193,13 +244,13 @@ def inject_adaptive_randomness(parent_smiles, sigma, alphabet):
     if not tokens:
         return None
 
-    num_mutations = max(1, int(abs(random.gauss(0, sigma * 8)) + 1))
+    num_mutations = max(1, int(abs(random.gauss(0, sigma * 6)) + 1))
     for _ in range(num_mutations):
         r = random.random()
-        if r < (0.35 * sigma) and len(tokens) < 48:
+        if r < (0.35 * sigma) and len(tokens) < 46:
             idx = random.randint(0, len(tokens))
             tokens.insert(idx, random.choice(alphabet))
-        elif r < (0.55 * sigma) and len(tokens) > 12:
+        elif r < (0.50 * sigma) and len(tokens) > 22:
             tokens.pop(random.randint(0, len(tokens) - 1))
         else:
             idx = random.randint(0, len(tokens) - 1)
@@ -236,32 +287,33 @@ def main():
     oracle = GBMRegressionOracle(CACHE_PATH)
 
     seed_scaffolds = [
-        "Cn1nnc2c(C(N)=O)ncn2c1=O",
         "COCCOc1cc2ncnc(Nc3cccc(C#C)c3)c2cc1OCCOC",
         "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
-        "C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C"
+        "C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C",
+        "CN1CCN(Cc2ccc(NC(=O)c3ccc(C)c(Nc4nccc(-c5cccnc5)n4)c3)cc2)CC1"
     ]
     seed_fps = [
         MFP_GEN.GetFingerprint(Chem.MolFromSmiles(s))
         for s in seed_scaffolds
     ]
+    # Clean medicinal chemistry alphabet (no hypervalent sulfur tokens)
     alphabet = [
         "[C]", "[=C]", "[#C]", "[N]", "[=N]", "[O]", "[=O]",
-        "[F]", "[Cl]", "[S]", "[Branch1]", "[Branch2]",
+        "[F]", "[Cl]", "[Branch1]", "[Branch2]",
         "[Ring1]", "[Ring2]", "[=Branch1]", "[=Ring1]"
     ]
 
     q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
     initial_db_count = conn.execute(q_cnt).fetchone()[0]
 
-    instant_rescue_and_prune(conn)
+    clean_and_recalibrate_vault(conn, oracle, seed_fps)
 
     q_best = "SELECT MAX(total_score) FROM discovered_molecules"
     true_best = conn.execute(q_best).fetchone()[0] or 0.0
 
     q_elites = (
         "SELECT smiles FROM discovered_molecules "
-        "WHERE bbb_score >= 0.70 AND sa_score <= 3.8 "
+        "WHERE bbb_score >= 0.72 AND sa_score <= 3.6 "
         "ORDER BY total_score DESC LIMIT 12"
     )
     elites = [r[0] for r in conn.execute(q_elites).fetchall()]
@@ -272,8 +324,7 @@ def main():
         state["best_score"] = float(true_best)
         prev_eval = state.get("total_evaluated", 0)
         state["total_evaluated"] = max(prev_eval, initial_db_count)
-        if elites:
-            state["elite_pool"] = elites
+        state["elite_pool"] = elites if elites else seed_scaffolds
     else:
         state = {
             "generation": 0,
@@ -286,10 +337,11 @@ def main():
 
     q_all = "SELECT smiles FROM discovered_molecules"
     seen_smiles = set(r[0] for r in conn.execute(q_all).fetchall())
-    print(f"[RUN] Starting 10m Batch | Best: {state['best_score']:.3f}")
+    print(f"[AUTOPILOT] Starting 4.5-Hour Marathon | Best: {state['best_score']:.3f}")
 
     start_time = time.time()
-    max_run_seconds = 10 * 60
+    # 4.5 hours per scheduled GitHub Action run (24/7 continuous autopilot)
+    max_run_seconds = int(4.5 * 3600)
 
     while (time.time() - start_time) < max_run_seconds:
         state["generation"] += 1
@@ -297,9 +349,9 @@ def main():
         candidates = []
 
         attempts = 0
-        while len(candidates) < 50 and attempts < 200:
+        while len(candidates) < 50 and attempts < 220:
             attempts += 1
-            pool = state["elite_pool"] if random.random() < 0.8 else seed_scaffolds
+            pool = state["elite_pool"] if random.random() < 0.75 else seed_scaffolds
             parent = random.choice(pool)
             mutant = inject_adaptive_randomness(parent, sigma, alphabet)
             if not mutant or mutant in seen_smiles:
@@ -334,22 +386,22 @@ def main():
             else:
                 state["stagnant_generations"] += 1
                 if state["stagnant_generations"] >= 4:
-                    state["sigma"] = min(0.48, sigma * 1.25)
+                    state["sigma"] = min(0.45, sigma * 1.25)
                     state["stagnant_generations"] = 0
 
             elites = [r[0] for r in conn.execute(q_elites).fetchall()]
             if elites:
                 state["elite_pool"] = elites
 
-        if gen % 10 == 0 and candidates:
+        if gen % 25 == 0 and candidates:
             print(f"[Gen {gen:05d}] Best: {state['best_score']:.3f}")
 
-    instant_rescue_and_prune(conn)
+    clean_and_recalibrate_vault(conn, oracle, seed_fps)
     conn.close()
 
     with open(STATE_PATH, "w") as f:
         json.dump(state, f, indent=2)
-    print("[GITHUB RUN] Complete. Vault saved.")
+    print("[AUTOPILOT] 4.5-Hour Marathon Complete. Vault saved.")
 
 if __name__ == "__main__":
     main()
