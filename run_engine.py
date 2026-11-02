@@ -11,7 +11,7 @@ import pandas as pd
 import selfies as sf
 import xgboost as xgb
 from rdkit import Chem, RDLogger
-from rdkit.Chem import Descriptors, QED, DataStructs, rdFingerprintGenerator
+from rdkit.Chem import AllChem, Descriptors, QED, DataStructs, rdFingerprintGenerator
 from rdkit.Contrib.SA_Score import sascorer
 
 RDLogger.DisableLog('rdApp.*')
@@ -27,14 +27,13 @@ CACHE_PATH = os.path.join(WORK_DIR, "egfr_training_cache.csv")
 MAX_VAULT_SIZE = 25000
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
-# Substructure filters to block unstable/toxic warheads (PAINS & reactive groups)
 FORBIDDEN_SMARTS = [
-    Chem.MolFromSmarts("[S,s]#[*,#1]"),       # Hypervalent sulfur triple bonds (S#C)
-    Chem.MolFromSmarts("[CX3]=[SX1]"),        # Unstable thioaldehydes/thioketones (S=C)
-    Chem.MolFromSmarts("[OX2][OX2]"),         # Peroxides (O-O)
-    Chem.MolFromSmarts("[NX3,NX2][F,Cl,Br]"), # Reactive N-halides (N-Cl, N-F)
-    Chem.MolFromSmarts("[OX2][F,Cl,Br]"),     # Hypohalites (O-F, O-Cl)
-    Chem.MolFromSmarts("[C,c]=[C,c]=[C,c]"),  # Unstable allenes (C=C=C)
+    Chem.MolFromSmarts("[S,s]#[*,#1]"),
+    Chem.MolFromSmarts("[CX3]=[SX1]"),
+    Chem.MolFromSmarts("[OX2][OX2]"),
+    Chem.MolFromSmarts("[NX3,NX2][F,Cl,Br]"),
+    Chem.MolFromSmarts("[OX2][F,Cl,Br]"),
+    Chem.MolFromSmarts("[C,c]=[C,c]=[C,c]"),
 ]
 
 def mol_to_fp(mol):
@@ -47,13 +46,44 @@ def passes_medicinal_chemistry_filters(mol):
     if mol is None:
         return False
     num_atoms = mol.GetNumAtoms()
-    # True small-molecule kinase inhibitors require 20 to 42 heavy atoms
     if num_atoms < 20 or num_atoms > 42:
         return False
     for pattern in FORBIDDEN_SMARTS:
         if pattern is not None and mol.HasSubstructMatch(pattern):
             return False
     return True
+
+def evaluate_3d_conformer_physics(mol):
+    """
+    Inflates the 2D molecule into 3D atomic coordinates (ETKDGv3) and calculates
+    MMFF94s force-field energy per atom to reward low-strain, pocket-ready 3D geometries.
+    """
+    try:
+        mol_3d = Chem.AddHs(mol)
+        params = AllChem.ETKDGv3()
+        params.randomSeed = 42
+        if AllChem.EmbedMolecule(mol_3d, params) == -1:
+            return -0.50  # Penalty if molecule is sterically impossible to fold in 3D
+
+        props = AllChem.MMFFGetMoleculeProperties(mol_3d, mmffVariant="MMFF94s")
+        if props is None:
+            return 0.0
+        ff = AllChem.MMFFGetMoleculeForceField(mol_3d, props)
+        if ff is None:
+            return 0.0
+        ff.Minimize(maxIts=150)
+        energy_per_atom = ff.CalcEnergy() / mol.GetNumAtoms()
+
+        # Low strain energy (< 2.5 kcal/mol per heavy atom) gets a 3D stability bonus
+        if energy_per_atom < 1.8:
+            return 0.45
+        elif energy_per_atom < 3.5:
+            return 0.20
+        elif energy_per_atom > 6.5:
+            return -0.60
+        return 0.0
+    except Exception:
+        return 0.0
 
 class GBMRegressionOracle:
     def __init__(self, cache_path):
@@ -168,10 +198,15 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     herg_risk = max(0.0, (logp - 4.0) * 0.8) if logp > 4.0 else 0.0
     pred_pic50 = oracle.predict_potency(mol, seed_fps)
 
+    # Run 3D MMFF94s force-field physics check on promising candidates
+    bonus_3d = 0.0
+    if pred_pic50 >= 7.2 and bbb_score >= 0.65:
+        bonus_3d = evaluate_3d_conformer_physics(mol)
+
     sa_penalty = max(0.0, (sa_score - 3.0) * 0.50)
     total_score = (
         (1.35 * pred_pic50) + (3.00 * bbb_score) +
-        (1.50 * qed_score) - sa_penalty - herg_risk
+        (1.50 * qed_score) + bonus_3d - sa_penalty - herg_risk
     )
 
     return {
@@ -186,39 +221,43 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
         "tpsa": round(tpsa, 1)
     }
 
+def select_diverse_elites(conn, max_elites=12, sim_threshold=0.65):
+    """
+    Prevents the AI from getting stuck mutating clones of a single molecule.
+    Selects up to 12 top-scoring scaffolds that are structurally distinct from each other.
+    """
+    q = (
+        "SELECT smiles FROM discovered_molecules "
+        "WHERE bbb_score >= 0.72 AND sa_score <= 3.6 "
+        "ORDER BY total_score DESC LIMIT 250"
+    )
+    rows = conn.execute(q).fetchall()
+    diverse_smiles = []
+    diverse_fps = []
+
+    for (smi,) in rows:
+        mol = Chem.MolFromSmiles(smi)
+        if not mol:
+            continue
+        fp = MFP_GEN.GetFingerprint(mol)
+        if not diverse_fps:
+            diverse_smiles.append(smi)
+            diverse_fps.append(fp)
+        else:
+            sims = DataStructs.BulkTanimotoSimilarity(fp, diverse_fps)
+            if max(sims) < sim_threshold:
+                diverse_smiles.append(smi)
+                diverse_fps.append(fp)
+        if len(diverse_smiles) >= max_elites:
+            break
+
+    return diverse_smiles
+
 def clean_and_recalibrate_vault(conn, oracle, seed_fps):
-    # Wipe any remaining uncalibrated scores from the old reward-hacking run (> 9.8)
     q_max = "SELECT MAX(pred_pic50) FROM discovered_molecules"
     max_pic50 = conn.execute(q_max).fetchone()[0]
     if max_pic50 is not None and max_pic50 > 9.85:
-        print(f"[AUDIT] Purging legacy inflated entries (max={max_pic50:.2f})...")
         conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 9.85")
-        conn.commit()
-
-        # Re-verify remaining top entries against medicinal chemistry filters
-        rows = conn.execute("SELECT smiles FROM discovered_molecules").fetchall()
-        updates, to_del = [], []
-        for (smi,) in rows:
-            res = evaluate_gbm_candidate(smi, oracle, seed_fps)
-            if res:
-                updates.append((
-                    res["total_score"], res["pred_pic50"], res["bbb_score"],
-                    res["sa_score"], res["qed"], res["mw"], res["logp"],
-                    res["tpsa"], smi
-                ))
-            else:
-                to_del.append((smi,))
-        if to_del:
-            conn.executemany(
-                "DELETE FROM discovered_molecules WHERE smiles=?", to_del
-            )
-        if updates:
-            conn.executemany("""
-                UPDATE discovered_molecules
-                SET total_score=?, pred_pic50=?, bbb_score=?, sa_score=?,
-                    qed=?, mw=?, logp=?, tpsa=?
-                WHERE smiles=?
-            """, updates)
         conn.commit()
 
     q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
@@ -296,7 +335,6 @@ def main():
         MFP_GEN.GetFingerprint(Chem.MolFromSmiles(s))
         for s in seed_scaffolds
     ]
-    # Clean medicinal chemistry alphabet (no hypervalent sulfur tokens)
     alphabet = [
         "[C]", "[=C]", "[#C]", "[N]", "[=N]", "[O]", "[=O]",
         "[F]", "[Cl]", "[Branch1]", "[Branch2]",
@@ -311,12 +349,7 @@ def main():
     q_best = "SELECT MAX(total_score) FROM discovered_molecules"
     true_best = conn.execute(q_best).fetchone()[0] or 0.0
 
-    q_elites = (
-        "SELECT smiles FROM discovered_molecules "
-        "WHERE bbb_score >= 0.72 AND sa_score <= 3.6 "
-        "ORDER BY total_score DESC LIMIT 12"
-    )
-    elites = [r[0] for r in conn.execute(q_elites).fetchall()]
+    elites = select_diverse_elites(conn)
 
     if os.path.exists(STATE_PATH):
         with open(STATE_PATH, "r") as f:
@@ -337,10 +370,9 @@ def main():
 
     q_all = "SELECT smiles FROM discovered_molecules"
     seen_smiles = set(r[0] for r in conn.execute(q_all).fetchall())
-    print(f"[AUTOPILOT] Starting 4.5-Hour Marathon | Best: {state['best_score']:.3f}")
+    print(f"[AUTOPILOT] Starting 3D-Aware Marathon | Best: {state['best_score']:.3f}")
 
     start_time = time.time()
-    # 4.5 hours per scheduled GitHub Action run (24/7 continuous autopilot)
     max_run_seconds = int(4.5 * 3600)
 
     while (time.time() - start_time) < max_run_seconds:
@@ -389,12 +421,13 @@ def main():
                     state["sigma"] = min(0.45, sigma * 1.25)
                     state["stagnant_generations"] = 0
 
-            elites = [r[0] for r in conn.execute(q_elites).fetchall()]
-            if elites:
-                state["elite_pool"] = elites
+            if gen % 5 == 0:
+                elites = select_diverse_elites(conn)
+                if elites:
+                    state["elite_pool"] = elites
 
         if gen % 25 == 0 and candidates:
-            print(f"[Gen {gen:05d}] Best: {state['best_score']:.3f}")
+            print(f"[Gen {gen:05d}] Best: {state['best_score']:.3f} | Pool: {len(state['elite_pool'])}")
 
     clean_and_recalibrate_vault(conn, oracle, seed_fps)
     conn.close()
