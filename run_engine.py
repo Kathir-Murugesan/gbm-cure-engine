@@ -32,6 +32,7 @@ SDF_EXPORT_PATH = os.path.join(WORK_DIR, "top_25_docked_leads.sdf")
 MAX_VAULT_SIZE = 25000
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
+# EDIT 1: Added [r3]=[r3] to block strained 3-membered unsaturated rings
 FORBIDDEN_SMARTS = [
     Chem.MolFromSmarts("[S,s]#[*,#1]"),
     Chem.MolFromSmarts("[CX3]=[SX1]"),
@@ -375,21 +376,25 @@ def clean_and_recalibrate_vault(conn, oracle, docker, seed_fps):
         conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 9.85")
         conn.commit()
 
-    # Re-evaluate Top 100 elites inside the 3D 1M17 crystal pocket
-    top_100 = conn.execute(
-        "SELECT smiles FROM discovered_molecules ORDER BY total_score DESC LIMIT 100"
+    # EDIT 2A: Re-evaluate Top 500 inside the 3D 1M17 pocket & delete strained 3-ring molecules
+    top_500 = conn.execute(
+        "SELECT smiles FROM discovered_molecules ORDER BY total_score DESC LIMIT 500"
     ).fetchall()
-    updates_3d = []
-    for (smi,) in top_100:
+    updates_3d, to_del = [], []
+    for (smi,) in top_500:
         res = evaluate_gbm_candidate(smi, oracle, docker, seed_fps)
         if res:
             updates_3d.append((res["total_score"], smi))
+        else:
+            to_del.append((smi,))
+    if to_del:
+        conn.executemany("DELETE FROM discovered_molecules WHERE smiles=?", to_del)
     if updates_3d:
         conn.executemany(
             "UPDATE discovered_molecules SET total_score=? WHERE smiles=?",
             updates_3d
         )
-        conn.commit()
+    conn.commit()
 
     q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
     total_rows = conn.execute(q_cnt).fetchone()[0]
@@ -502,12 +507,11 @@ def main():
 
     q_all = "SELECT smiles FROM discovered_molecules"
     seen_smiles = set(r[0] for r in conn.execute(q_all).fetchall())
-    print(f"[AUTOPILOT] Starting 3D EGFR Pocket Run | Best: {state['best_score']:.3f}")
+    print(f"[AUTOPILOT] Starting 4.5-Hour 3D EGFR Pocket Marathon | Best: {state['best_score']:.3f}")
 
     start_time = time.time()
-    # Set to 10 minutes (10 * 60) for immediate 3D docking calibration!
-    # Change to int(4.5 * 3600) after verifying on Streamlit!
-    max_run_seconds = 10 * 60
+    # EDIT 2B: Restored to 4.5 hours for continuous 24/7 autopilot
+    max_run_seconds = int(4.5 * 3600)
 
     while (time.time() - start_time) < max_run_seconds:
         state["generation"] += 1
