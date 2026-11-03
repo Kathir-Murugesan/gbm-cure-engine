@@ -11,7 +11,10 @@ import pandas as pd
 import selfies as sf
 import xgboost as xgb
 from rdkit import Chem, RDLogger
-from rdkit.Chem import AllChem, Descriptors, QED, DataStructs, rdFingerprintGenerator
+from rdkit.Chem import (
+    AllChem, Descriptors, QED, DataStructs,
+    rdFingerprintGenerator, rdMolAlign, rdShapeHelpers
+)
 from rdkit.Contrib.SA_Score import sascorer
 
 RDLogger.DisableLog('rdApp.*')
@@ -23,6 +26,8 @@ os.makedirs(WORK_DIR, exist_ok=True)
 DB_PATH = os.path.join(WORK_DIR, "gbm_vault.sqlite")
 STATE_PATH = os.path.join(WORK_DIR, "adaptive_state.json")
 CACHE_PATH = os.path.join(WORK_DIR, "egfr_training_cache.csv")
+PDB_PATH = os.path.join(WORK_DIR, "1M17.pdb")
+SDF_EXPORT_PATH = os.path.join(WORK_DIR, "top_25_docked_leads.sdf")
 
 MAX_VAULT_SIZE = 25000
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
@@ -53,37 +58,130 @@ def passes_medicinal_chemistry_filters(mol):
             return False
     return True
 
-def evaluate_3d_conformer_physics(mol):
-    """
-    Inflates the 2D molecule into 3D atomic coordinates (ETKDGv3) and calculates
-    MMFF94s force-field energy per atom to reward low-strain, pocket-ready 3D geometries.
-    """
-    try:
-        mol_3d = Chem.AddHs(mol)
+class EGFR3DPocketDocker:
+    def __init__(self, pdb_path):
+        self.pdb_path = pdb_path
+        self.ref_ligand_3d = None
+        self.pocket_coords = None
+        self._prepare_1m17_pocket()
+
+    def _prepare_1m17_pocket(self):
+        if not os.path.exists(self.pdb_path):
+            try:
+                r = requests.get("https://files.rcsb.org/download/1M17.pdb", timeout=20)
+                if r.status_code == 200:
+                    with open(self.pdb_path, "w") as f:
+                        f.write(r.text)
+            except Exception:
+                pass
+
+        ref_smi = "COCCOc1cc2ncnc(Nc3cccc(C#C)c3)c2cc1OCCOC"
+        ref_mol = Chem.AddHs(Chem.MolFromSmiles(ref_smi))
         params = AllChem.ETKDGv3()
         params.randomSeed = 42
-        if AllChem.EmbedMolecule(mol_3d, params) == -1:
-            return -0.50  # Penalty if molecule is sterically impossible to fold in 3D
+        AllChem.EmbedMolecule(ref_mol, params)
+        AllChem.MMFFOptimizeMolecule(ref_mol, mmffVariant="MMFF94s")
 
-        props = AllChem.MMFFGetMoleculeProperties(mol_3d, mmffVariant="MMFF94s")
-        if props is None:
-            return 0.0
-        ff = AllChem.MMFFGetMoleculeForceField(mol_3d, props)
-        if ff is None:
-            return 0.0
-        ff.Minimize(maxIts=150)
-        energy_per_atom = ff.CalcEnergy() / mol.GetNumAtoms()
+        if os.path.exists(self.pdb_path):
+            aq4_lines = []
+            prot_coords = []
+            with open(self.pdb_path, "r") as f:
+                for line in f:
+                    if line.startswith("HETATM") and "AQ4" in line:
+                        aq4_lines.append(line)
+                    elif line.startswith("ATOM"):
+                        try:
+                            x = float(line[30:38])
+                            y = float(line[38:46])
+                            z = float(line[46:54])
+                            prot_coords.append([x, y, z])
+                        except Exception:
+                            pass
+            if aq4_lines:
+                pdb_block = "".join(aq4_lines) + "END\n"
+                crystal_aq4 = Chem.MolFromPDBBlock(pdb_block, sanitize=False, removeHs=True)
+                if crystal_aq4 and crystal_aq4.GetNumConformers() > 0:
+                    c_conf = crystal_aq4.GetConformer()
+                    center = np.mean(
+                        [[c_conf.GetAtomPosition(i).x,
+                          c_conf.GetAtomPosition(i).y,
+                          c_conf.GetAtomPosition(i).z]
+                         for i in range(crystal_aq4.GetNumAtoms())],
+                        axis=0
+                    )
+                    r_conf = ref_mol.GetConformer()
+                    r_center = np.mean(
+                        [[r_conf.GetAtomPosition(i).x,
+                          r_conf.GetAtomPosition(i).y,
+                          r_conf.GetAtomPosition(i).z]
+                         for i in range(ref_mol.GetNumAtoms())],
+                        axis=0
+                    )
+                    shift = center - r_center
+                    for i in range(ref_mol.GetNumAtoms()):
+                        pos = r_conf.GetAtomPosition(i)
+                        r_conf.SetAtomPosition(
+                            i, (pos.x + shift[0], pos.y + shift[1], pos.z + shift[2])
+                        )
+                    if prot_coords:
+                        p_arr = np.array(prot_coords)
+                        dists = np.linalg.norm(p_arr - center, axis=1)
+                        self.pocket_coords = p_arr[dists <= 10.0]
 
-        # Low strain energy (< 2.5 kcal/mol per heavy atom) gets a 3D stability bonus
-        if energy_per_atom < 1.8:
-            return 0.45
-        elif energy_per_atom < 3.5:
-            return 0.20
-        elif energy_per_atom > 6.5:
-            return -0.60
-        return 0.0
-    except Exception:
-        return 0.0
+        self.ref_ligand_3d = Chem.RemoveHs(ref_mol)
+
+    def dock_and_score_3d(self, mol):
+        try:
+            mol_3d = Chem.AddHs(mol)
+            params = AllChem.ETKDGv3()
+            params.randomSeed = 42
+            if AllChem.EmbedMolecule(mol_3d, params) == -1:
+                return -0.60, -5.0, None
+
+            props = AllChem.MMFFGetMoleculeProperties(mol_3d, mmffVariant="MMFF94s")
+            if props is None:
+                return 0.0, -6.5, None
+            ff = AllChem.MMFFGetMoleculeForceField(mol_3d, props)
+            if ff is None:
+                return 0.0, -6.5, None
+            ff.Minimize(maxIts=150)
+            strain_per_atom = ff.CalcEnergy() / mol.GetNumAtoms()
+
+            mol_no_h = Chem.RemoveHs(mol_3d)
+            crippen_alignment = rdMolAlign.GetCrippenO3A(mol_no_h, self.ref_ligand_3d)
+            crippen_alignment.Align()
+
+            shape_dist = rdShapeHelpers.ShapeTanimotoDist(mol_no_h, self.ref_ligand_3d)
+            shape_sim = max(0.0, 1.0 - shape_dist)
+
+            clash_penalty = 0.0
+            if self.pocket_coords is not None and len(self.pocket_coords) > 0:
+                conf = mol_no_h.GetConformer()
+                lig_pts = np.array([
+                    [conf.GetAtomPosition(i).x,
+                     conf.GetAtomPosition(i).y,
+                     conf.GetAtomPosition(i).z]
+                    for i in range(mol_no_h.GetNumAtoms())
+                ])
+                diff = lig_pts[:, None, :] - self.pocket_coords[None, :, :]
+                dists = np.linalg.norm(diff, axis=-1)
+                severe_clashes = np.sum(dists < 2.2)
+                favorable_contacts = np.sum((dists >= 2.8) & (dists <= 4.2))
+                clash_penalty = severe_clashes * 0.35
+                contact_bonus = min(1.2, favorable_contacts * 0.015)
+            else:
+                contact_bonus = shape_sim * 0.8
+
+            est_dg = (
+                -6.2 - (3.8 * shape_sim) - contact_bonus +
+                clash_penalty + max(0.0, (strain_per_atom - 2.5) * 0.3)
+            )
+            est_dg = max(-12.5, min(-4.0, est_dg))
+
+            docking_bonus = max(-0.80, min(1.25, (-est_dg - 7.5) * 0.35))
+            return docking_bonus, round(est_dg, 2), mol_no_h
+        except Exception:
+            return 0.0, -6.5, None
 
 class GBMRegressionOracle:
     def __init__(self, cache_path):
@@ -167,7 +265,7 @@ class GBMRegressionOracle:
         realistic = max(3.0, min(9.8, raw_pred + pharm_bonus - ood_penalty))
         return realistic
 
-def evaluate_gbm_candidate(smiles, oracle, seed_fps):
+def evaluate_gbm_candidate(smiles, oracle, docker, seed_fps):
     mol = Chem.MolFromSmiles(smiles)
     if not passes_medicinal_chemistry_filters(mol):
         return None
@@ -198,10 +296,9 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
     herg_risk = max(0.0, (logp - 4.0) * 0.8) if logp > 4.0 else 0.0
     pred_pic50 = oracle.predict_potency(mol, seed_fps)
 
-    # Run 3D MMFF94s force-field physics check on promising candidates
     bonus_3d = 0.0
-    if pred_pic50 >= 7.2 and bbb_score >= 0.65:
-        bonus_3d = evaluate_3d_conformer_physics(mol)
+    if pred_pic50 >= 7.5 and bbb_score >= 0.70:
+        bonus_3d, _, _ = docker.dock_and_score_3d(mol)
 
     sa_penalty = max(0.0, (sa_score - 3.0) * 0.50)
     total_score = (
@@ -221,19 +318,37 @@ def evaluate_gbm_candidate(smiles, oracle, seed_fps):
         "tpsa": round(tpsa, 1)
     }
 
+def export_top_25_docked_sdf(conn, docker):
+    q = (
+        "SELECT smiles, total_score, pred_pic50, bbb_score, sa_score "
+        "FROM discovered_molecules ORDER BY total_score DESC LIMIT 25"
+    )
+    rows = conn.execute(q).fetchall()
+    writer = Chem.SDWriter(SDF_EXPORT_PATH)
+    for rank, (smi, tot, pic50, bbb, sa) in enumerate(rows, 1):
+        mol = Chem.MolFromSmiles(smi)
+        if not mol:
+            continue
+        _, est_dg, docked_mol = docker.dock_and_score_3d(mol)
+        if docked_mol is not None:
+            docked_mol.SetProp("_Name", f"GBM_Lead_Rank_{rank}")
+            docked_mol.SetProp("SMILES", smi)
+            docked_mol.SetProp("Unified_Score", str(tot))
+            docked_mol.SetProp("Pred_pIC50", str(pic50))
+            docked_mol.SetProp("Estimated_3D_DeltaG_kcal_mol", str(est_dg))
+            docked_mol.SetProp("BBB_Score", str(bbb))
+            docked_mol.SetProp("SA_Score", str(sa))
+            writer.write(docked_mol)
+    writer.close()
+
 def select_diverse_elites(conn, max_elites=12, sim_threshold=0.65):
-    """
-    Prevents the AI from getting stuck mutating clones of a single molecule.
-    Selects up to 12 top-scoring scaffolds that are structurally distinct from each other.
-    """
     q = (
         "SELECT smiles FROM discovered_molecules "
         "WHERE bbb_score >= 0.72 AND sa_score <= 3.6 "
         "ORDER BY total_score DESC LIMIT 250"
     )
     rows = conn.execute(q).fetchall()
-    diverse_smiles = []
-    diverse_fps = []
+    diverse_smiles, diverse_fps = [], []
 
     for (smi,) in rows:
         mol = Chem.MolFromSmiles(smi)
@@ -250,14 +365,29 @@ def select_diverse_elites(conn, max_elites=12, sim_threshold=0.65):
                 diverse_fps.append(fp)
         if len(diverse_smiles) >= max_elites:
             break
-
     return diverse_smiles
 
-def clean_and_recalibrate_vault(conn, oracle, seed_fps):
+def clean_and_recalibrate_vault(conn, oracle, docker, seed_fps):
     q_max = "SELECT MAX(pred_pic50) FROM discovered_molecules"
     max_pic50 = conn.execute(q_max).fetchone()[0]
     if max_pic50 is not None and max_pic50 > 9.85:
         conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 9.85")
+        conn.commit()
+
+    # Re-evaluate Top 100 elites inside the 3D 1M17 crystal pocket
+    top_100 = conn.execute(
+        "SELECT smiles FROM discovered_molecules ORDER BY total_score DESC LIMIT 100"
+    ).fetchall()
+    updates_3d = []
+    for (smi,) in top_100:
+        res = evaluate_gbm_candidate(smi, oracle, docker, seed_fps)
+        if res:
+            updates_3d.append((res["total_score"], smi))
+    if updates_3d:
+        conn.executemany(
+            "UPDATE discovered_molecules SET total_score=? WHERE smiles=?",
+            updates_3d
+        )
         conn.commit()
 
     q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
@@ -324,6 +454,7 @@ def main():
     conn.commit()
 
     oracle = GBMRegressionOracle(CACHE_PATH)
+    docker = EGFR3DPocketDocker(PDB_PATH)
 
     seed_scaffolds = [
         "COCCOc1cc2ncnc(Nc3cccc(C#C)c3)c2cc1OCCOC",
@@ -344,7 +475,7 @@ def main():
     q_cnt = "SELECT COUNT(*) FROM discovered_molecules"
     initial_db_count = conn.execute(q_cnt).fetchone()[0]
 
-    clean_and_recalibrate_vault(conn, oracle, seed_fps)
+    clean_and_recalibrate_vault(conn, oracle, docker, seed_fps)
 
     q_best = "SELECT MAX(total_score) FROM discovered_molecules"
     true_best = conn.execute(q_best).fetchone()[0] or 0.0
@@ -370,10 +501,12 @@ def main():
 
     q_all = "SELECT smiles FROM discovered_molecules"
     seen_smiles = set(r[0] for r in conn.execute(q_all).fetchall())
-    print(f"[AUTOPILOT] Starting 3D-Aware Marathon | Best: {state['best_score']:.3f}")
+    print(f"[AUTOPILOT] Starting 3D EGFR Pocket Run | Best: {state['best_score']:.3f}")
 
     start_time = time.time()
-    max_run_seconds = int(4.5 * 3600)
+    # Set to 10 minutes (10 * 60) for immediate 3D docking calibration!
+    # Change to int(4.5 * 3600) after verifying on Streamlit!
+    max_run_seconds = 10 * 60
 
     while (time.time() - start_time) < max_run_seconds:
         state["generation"] += 1
@@ -389,7 +522,7 @@ def main():
             if not mutant or mutant in seen_smiles:
                 continue
             seen_smiles.add(mutant)
-            res = evaluate_gbm_candidate(mutant, oracle, seed_fps)
+            res = evaluate_gbm_candidate(mutant, oracle, docker, seed_fps)
             if res:
                 candidates.append(res)
                 state["total_evaluated"] += 1
@@ -429,12 +562,13 @@ def main():
         if gen % 25 == 0 and candidates:
             print(f"[Gen {gen:05d}] Best: {state['best_score']:.3f} | Pool: {len(state['elite_pool'])}")
 
-    clean_and_recalibrate_vault(conn, oracle, seed_fps)
+    clean_and_recalibrate_vault(conn, oracle, docker, seed_fps)
+    export_top_25_docked_sdf(conn, docker)
     conn.close()
 
     with open(STATE_PATH, "w") as f:
         json.dump(state, f, indent=2)
-    print("[AUTOPILOT] 4.5-Hour Marathon Complete. Vault saved.")
+    print("[AUTOPILOT] Complete. Vault & Top 25 3D Docked SDF saved.")
 
 if __name__ == "__main__":
     main()
