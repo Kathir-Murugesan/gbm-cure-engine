@@ -39,6 +39,7 @@ FORBIDDEN_SMARTS = [
     Chem.MolFromSmarts("[NX3,NX2][F,Cl,Br]"),
     Chem.MolFromSmarts("[OX2][F,Cl,Br]"),
     Chem.MolFromSmarts("[C,c]=[C,c]=[C,c]"),
+    Chem.MolFromSmarts("[r3]=[r3]"),
 ]
 
 def mol_to_fp(mol):
