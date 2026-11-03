@@ -39,7 +39,7 @@ jobs:
       run: |
         git config --global user.name "GBM-Discovery-Bot"
         git config --global user.email "bot@users.noreply.github.com"
-        git add gbm_workspace/gbm_vault.sqlite gbm_workspace/adaptive_state.json
+        git add gbm_workspace/gbm_vault.sqlite gbm_workspace/adaptive_state.json gbm_workspace/top_25_docked_leads.sdf || true
         git commit -m "Auto-checkpoint: Updated GBM Vault & Regression Brain [skip ci]" || echo "No changes to commit"
         git pull origin main --rebase
         git push origin main
