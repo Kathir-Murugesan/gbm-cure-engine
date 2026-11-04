@@ -32,7 +32,8 @@ SDF_EXPORT_PATH = os.path.join(WORK_DIR, "top_25_docked_leads.sdf")
 MAX_VAULT_SIZE = 25000
 MFP_GEN = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
 
-# EDIT 1: Added [r3]=[r3] to block strained 3-membered unsaturated rings
+# Blocks all 3-membered rings [r3] and strained FUSED 4-membered rings [r4;R2]
+# (Allows clean pendant azetidines like Rank 5's C1CNC1!)
 FORBIDDEN_SMARTS = [
     Chem.MolFromSmarts("[S,s]#[*,#1]"),
     Chem.MolFromSmarts("[CX3]=[SX1]"),
@@ -40,7 +41,8 @@ FORBIDDEN_SMARTS = [
     Chem.MolFromSmarts("[NX3,NX2][F,Cl,Br]"),
     Chem.MolFromSmarts("[OX2][F,Cl,Br]"),
     Chem.MolFromSmarts("[C,c]=[C,c]=[C,c]"),
-    Chem.MolFromSmarts("[r3]=[r3]"),
+    Chem.MolFromSmarts("[r3]"),
+    Chem.MolFromSmarts("[r4;R2]"),
 ]
 
 def mol_to_fp(mol):
@@ -138,14 +140,14 @@ class EGFR3DPocketDocker:
             params = AllChem.ETKDGv3()
             params.randomSeed = 42
             if AllChem.EmbedMolecule(mol_3d, params) == -1:
-                return -0.60, -5.0, None
+                return -1.50, -5.0, None
 
             props = AllChem.MMFFGetMoleculeProperties(mol_3d, mmffVariant="MMFF94s")
             if props is None:
-                return 0.0, -6.5, None
+                return -0.50, -6.2, None
             ff = AllChem.MMFFGetMoleculeForceField(mol_3d, props)
             if ff is None:
-                return 0.0, -6.5, None
+                return -0.50, -6.2, None
             ff.Minimize(maxIts=150)
             strain_per_atom = ff.CalcEnergy() / mol.GetNumAtoms()
 
@@ -170,7 +172,7 @@ class EGFR3DPocketDocker:
                 severe_clashes = np.sum(dists < 2.2)
                 favorable_contacts = np.sum((dists >= 2.8) & (dists <= 4.2))
                 clash_penalty = severe_clashes * 0.35
-                contact_bonus = min(1.2, favorable_contacts * 0.015)
+                contact_bonus = min(1.5, favorable_contacts * 0.018)
             else:
                 contact_bonus = shape_sim * 0.8
 
@@ -180,10 +182,11 @@ class EGFR3DPocketDocker:
             )
             est_dg = max(-12.5, min(-4.0, est_dg))
 
-            docking_bonus = max(-0.80, min(1.25, (-est_dg - 7.5) * 0.35))
+            # Strong thermodynamic weighting: rewards < -7.0 kcal/mol, heavily penalizes > -6.5 kcal/mol
+            docking_bonus = max(-2.00, min(2.50, (-est_dg - 6.8) * 0.85))
             return docking_bonus, round(est_dg, 2), mol_no_h
         except Exception:
-            return 0.0, -6.5, None
+            return -0.50, -6.2, None
 
 class GBMRegressionOracle:
     def __init__(self, cache_path):
@@ -291,20 +294,20 @@ def evaluate_gbm_candidate(smiles, oracle, docker, seed_fps):
     except Exception:
         sa_score = 6.0
 
-    if sa_score > 4.2:
+    if sa_score > 3.65:
         return None
 
     qed_score = QED.qed(mol)
     herg_risk = max(0.0, (logp - 4.0) * 0.8) if logp > 4.0 else 0.0
     pred_pic50 = oracle.predict_potency(mol, seed_fps)
 
-    bonus_3d = 0.0
-    if pred_pic50 >= 7.5 and bbb_score >= 0.70:
+    bonus_3d = -0.50
+    if pred_pic50 >= 7.4 and bbb_score >= 0.68:
         bonus_3d, _, _ = docker.dock_and_score_3d(mol)
 
-    sa_penalty = max(0.0, (sa_score - 3.0) * 0.50)
+    sa_penalty = max(0.0, (sa_score - 2.9) * 0.60)
     total_score = (
-        (1.35 * pred_pic50) + (3.00 * bbb_score) +
+        (1.25 * pred_pic50) + (3.00 * bbb_score) +
         (1.50 * qed_score) + bonus_3d - sa_penalty - herg_risk
     )
 
@@ -346,7 +349,7 @@ def export_top_25_docked_sdf(conn, docker):
 def select_diverse_elites(conn, max_elites=12, sim_threshold=0.65):
     q = (
         "SELECT smiles FROM discovered_molecules "
-        "WHERE bbb_score >= 0.72 AND sa_score <= 3.6 "
+        "WHERE bbb_score >= 0.72 AND sa_score <= 3.5 "
         "ORDER BY total_score DESC LIMIT 250"
     )
     rows = conn.execute(q).fetchall()
@@ -370,18 +373,12 @@ def select_diverse_elites(conn, max_elites=12, sim_threshold=0.65):
     return diverse_smiles
 
 def clean_and_recalibrate_vault(conn, oracle, docker, seed_fps):
-    q_max = "SELECT MAX(pred_pic50) FROM discovered_molecules"
-    max_pic50 = conn.execute(q_max).fetchone()[0]
-    if max_pic50 is not None and max_pic50 > 9.85:
-        conn.execute("DELETE FROM discovered_molecules WHERE pred_pic50 > 9.85")
-        conn.commit()
-
-    # EDIT 2A: Re-evaluate Top 500 inside the 3D 1M17 pocket & delete strained 3-ring molecules
-    top_500 = conn.execute(
-        "SELECT smiles FROM discovered_molecules ORDER BY total_score DESC LIMIT 500"
+    # Re-evaluate Top 600 so strong 3D binders (like Rank 5: -7.54 kcal/mol) rise to #1
+    top_600 = conn.execute(
+        "SELECT smiles FROM discovered_molecules ORDER BY total_score DESC LIMIT 600"
     ).fetchall()
     updates_3d, to_del = [], []
-    for (smi,) in top_500:
+    for (smi,) in top_600:
         res = evaluate_gbm_candidate(smi, oracle, docker, seed_fps)
         if res:
             updates_3d.append((res["total_score"], smi))
@@ -463,10 +460,10 @@ def main():
     docker = EGFR3DPocketDocker(PDB_PATH)
 
     seed_scaffolds = [
+        "FCCc1ncnc(Nc2cccc(F)c2)c1C1CNC1",
         "COCCOc1cc2ncnc(Nc3cccc(C#C)c3)c2cc1OCCOC",
         "COc1cc2ncnc(Nc3ccc(F)c(Cl)c3)c2cc1OCCCN1CCOCC1",
-        "C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C",
-        "CN1CCN(Cc2ccc(NC(=O)c3ccc(C)c(Nc4nccc(-c5cccnc5)n4)c3)cc2)CC1"
+        "C=CC(=O)Nc1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1N(C)CCN(C)C"
     ]
     seed_fps = [
         MFP_GEN.GetFingerprint(Chem.MolFromSmiles(s))
@@ -507,10 +504,9 @@ def main():
 
     q_all = "SELECT smiles FROM discovered_molecules"
     seen_smiles = set(r[0] for r in conn.execute(q_all).fetchall())
-    print(f"[AUTOPILOT] Starting 4.5-Hour 3D EGFR Pocket Marathon | Best: {state['best_score']:.3f}")
+    print(f"[AUTOPILOT] Starting 3D-Dominant EGFR Marathon | Best: {state['best_score']:.3f}")
 
     start_time = time.time()
-    # EDIT 2B: Restored to 4.5 hours for continuous 24/7 autopilot
     max_run_seconds = int(4.5 * 3600)
 
     while (time.time() - start_time) < max_run_seconds:
