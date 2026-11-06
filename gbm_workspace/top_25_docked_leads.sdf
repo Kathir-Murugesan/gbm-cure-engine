@@ -1,6 +1,76 @@
 GBM_Lead_Rank_1
      RDKit          3D
 
+ 22 24  0  0  0  0  0  0  0  0999 V2000
+   18.7094    6.1915   49.9389 C   0  0  0  0  0  0  0  0  0  0  0  0
+   19.0377    5.0369   50.6978 O   0  0  0  0  0  0  0  0  0  0  0  0
+   18.6086    3.8314   50.2114 C   0  0  0  0  0  0  0  0  0  0  0  0
+   17.7552    3.6480   49.1255 C   0  0  0  0  0  0  0  0  0  0  0  0
+   17.4014    2.3583   48.7313 C   0  0  0  0  0  0  0  0  0  0  0  0
+   17.8956    1.2514   49.4250 C   0  0  0  0  0  0  0  0  0  0  0  0
+   18.7437    1.4102   50.5304 C   0  0  0  0  0  0  0  0  0  0  0  0
+   19.2423    0.2630   51.1782 N   0  0  0  0  0  0  0  0  0  0  0  0
+   19.8873    0.1318   52.4222 C   0  0  0  0  0  0  0  0  0  0  0  0
+   19.5878    1.0134   53.3967 N   0  0  0  0  0  0  0  0  0  0  0  0
+   20.2050    0.8811   54.5755 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.1021   -0.0525   54.8833 N   0  0  0  0  0  0  0  0  0  0  0  0
+   21.4199   -0.8788   53.8745 C   0  0  0  0  0  0  0  0  0  0  0  0
+   22.3458   -1.8769   54.1844 O   0  0  0  0  0  0  0  0  0  0  0  0
+   23.5758   -1.3336   54.2259 C   0  0  0  0  0  0  0  0  0  0  0  0
+   24.1370   -0.2132   53.9510 N   0  0  0  0  0  0  0  0  0  0  0  0
+   25.4284   -0.8306   54.3452 C   0  0  0  0  0  0  0  0  0  0  0  0
+   24.7940   -1.9921   54.6027 C   0  0  0  0  0  0  0  0  0  0  0  0
+   20.8176   -0.8816   52.6250 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.1965   -1.8789   51.5821 C   0  0  0  0  0  0  0  0  0  0  0  0
+   22.4602   -1.2496   50.5106 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+   19.0937    2.7135   50.9030 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  2  0
+  6  7  1  0
+  7  8  1  0
+  8  9  1  0
+  9 10  1  0
+ 10 11  2  0
+ 11 12  1  0
+ 12 13  2  0
+ 13 14  1  0
+ 14 15  1  0
+ 15 16  2  0
+ 16 17  1  0
+ 17 18  2  0
+ 13 19  1  0
+ 19 20  1  0
+ 20 21  1  0
+  7 22  2  0
+ 22  3  1  0
+ 19  9  2  0
+ 18 15  1  0
+M  END
+>  <SMILES>  (1) 
+COc1cccc(Nc2ncnc(OC3=NC=C3)c2CCl)c1
+
+>  <Unified_Score>  (1) 
+15.8597
+
+>  <Pred_pIC50>  (1) 
+8.659
+
+>  <Estimated_3D_DeltaG_kcal_mol>  (1) 
+-8.42
+
+>  <BBB_Score>  (1) 
+0.792
+
+>  <SA_Score>  (1) 
+2.91
+
+$$$$
+GBM_Lead_Rank_2
+     RDKit          3D
+
  21 23  0  0  0  0  0  0  0  0999 V2000
    18.0016   -0.5535   54.2818 C   0  0  0  0  0  0  0  0  0  0  0  0
    19.0345    0.4255   53.7422 C   0  0  0  0  0  0  0  0  0  0  0  0
@@ -47,26 +117,26 @@ GBM_Lead_Rank_1
  21 18  1  0
  12  6  1  0
 M  END
->  <SMILES>  (1) 
+>  <SMILES>  (2) 
 CCc1c(Nc2cccc(F)c2)ncnc1OC1=NC=C1
 
->  <Unified_Score>  (1) 
+>  <Unified_Score>  (2) 
 15.8189
 
->  <Pred_pIC50>  (1) 
+>  <Pred_pIC50>  (2) 
 8.348
 
->  <Estimated_3D_DeltaG_kcal_mol>  (1) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (2) 
 -8.72
 
->  <BBB_Score>  (1) 
+>  <BBB_Score>  (2) 
 0.845
 
->  <SA_Score>  (1) 
+>  <SA_Score>  (2) 
 2.88
 
 $$$$
-GBM_Lead_Rank_2
+GBM_Lead_Rank_3
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -113,26 +183,26 @@ GBM_Lead_Rank_2
  19  8  2  0
  16 13  1  0
 M  END
->  <SMILES>  (2) 
+>  <SMILES>  (3) 
 Fc1cccc(Nc2cc(C=NC3=NC=C3)ccn2)c1
 
->  <Unified_Score>  (2) 
+>  <Unified_Score>  (3) 
 15.6495
 
->  <Pred_pIC50>  (2) 
+>  <Pred_pIC50>  (3) 
 7.985
 
->  <Estimated_3D_DeltaG_kcal_mol>  (2) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (3) 
 -8.82
 
->  <BBB_Score>  (2) 
+>  <BBB_Score>  (3) 
 0.882
 
->  <SA_Score>  (2) 
+>  <SA_Score>  (3) 
 2.85
 
 $$$$
-GBM_Lead_Rank_3
+GBM_Lead_Rank_4
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -179,26 +249,26 @@ GBM_Lead_Rank_3
  19  8  2  0
  16 13  1  0
 M  END
->  <SMILES>  (3) 
+>  <SMILES>  (4) 
 Fc1cccc(Nc2cc(C=NC3=CCN3)ccn2)c1
 
->  <Unified_Score>  (3) 
+>  <Unified_Score>  (4) 
 15.6254
 
->  <Pred_pIC50>  (3) 
+>  <Pred_pIC50>  (4) 
 7.716
 
->  <Estimated_3D_DeltaG_kcal_mol>  (3) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (4) 
 -9.27
 
->  <BBB_Score>  (3) 
+>  <BBB_Score>  (4) 
 0.875
 
->  <SA_Score>  (3) 
+>  <SA_Score>  (4) 
 2.81
 
 $$$$
-GBM_Lead_Rank_4
+GBM_Lead_Rank_5
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -245,26 +315,94 @@ GBM_Lead_Rank_4
  20 17  1  0
  11  5  1  0
 M  END
->  <SMILES>  (4) 
+>  <SMILES>  (5) 
 Cc1c(Nc2cccc(Cl)c2)ncnc1OC1OCO1
 
->  <Unified_Score>  (4) 
+>  <Unified_Score>  (5) 
 15.62
 
->  <Pred_pIC50>  (4) 
+>  <Pred_pIC50>  (5) 
 8.204
 
->  <Estimated_3D_DeltaG_kcal_mol>  (4) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (5) 
 -8.41
 
->  <BBB_Score>  (4) 
+>  <BBB_Score>  (5) 
 0.866
 
->  <SA_Score>  (4) 
+>  <SA_Score>  (5) 
 2.68
 
 $$$$
-GBM_Lead_Rank_5
+GBM_Lead_Rank_6
+     RDKit          3D
+
+ 21 23  0  0  0  0  0  0  0  0999 V2000
+   21.9708   -4.1440   53.3519 O   0  0  0  0  0  0  0  0  0  0  0  0
+   22.3410   -3.3201   54.1591 C   0  0  0  0  0  0  0  0  0  0  0  0
+   22.6044   -3.4271   55.5012 N   0  0  0  0  0  0  0  0  0  0  0  0
+   22.8607   -2.1753   55.6133 C   0  0  0  0  0  0  0  0  0  0  0  0
+   22.6899   -1.8439   54.1607 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.4768   -0.9339   53.8269 C   0  0  0  0  0  0  0  0  0  0  0  0
+   20.9920   -0.2691   54.9020 N   0  0  0  0  0  0  0  0  0  0  0  0
+   19.9653    0.5625   54.7024 C   0  0  0  0  0  0  0  0  0  0  0  0
+   19.3788    0.8047   53.5322 N   0  0  0  0  0  0  0  0  0  0  0  0
+   19.8522    0.1567   52.4545 C   0  0  0  0  0  0  0  0  0  0  0  0
+   19.2402    0.3981   51.2102 N   0  0  0  0  0  0  0  0  0  0  0  0
+   18.5836    1.5479   50.7296 C   0  0  0  0  0  0  0  0  0  0  0  0
+   18.7317    2.8126   51.3169 C   0  0  0  0  0  0  0  0  0  0  0  0
+   18.0884    3.9395   50.7907 C   0  0  0  0  0  0  0  0  0  0  0  0
+   17.2930    3.8182   49.6563 C   0  0  0  0  0  0  0  0  0  0  0  0
+   17.1548    2.5737   49.0586 C   0  0  0  0  0  0  0  0  0  0  0  0
+   16.3975    2.4506   47.9601 F   0  0  0  0  0  0  0  0  0  0  0  0
+   17.7922    1.4489   49.5770 C   0  0  0  0  0  0  0  0  0  0  0  0
+   20.9273   -0.7315   52.5512 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.5386   -1.3750   51.3402 C   0  0  0  0  0  0  0  0  0  0  0  0
+   22.9851   -0.4768   50.8281 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  2  0
+  2  3  1  0
+  3  4  2  0
+  4  5  1  0
+  5  6  1  0
+  6  7  2  0
+  7  8  1  0
+  8  9  2  0
+  9 10  1  0
+ 10 11  1  0
+ 11 12  1  0
+ 12 13  2  0
+ 13 14  1  0
+ 14 15  2  0
+ 15 16  1  0
+ 16 17  1  0
+ 16 18  2  0
+ 10 19  2  0
+ 19 20  1  0
+ 20 21  1  0
+  5  2  1  0
+ 19  6  1  0
+ 18 12  1  0
+M  END
+>  <SMILES>  (6) 
+O=C1N=CC1c1ncnc(Nc2cccc(F)c2)c1CCl
+
+>  <Unified_Score>  (6) 
+15.5373
+
+>  <Pred_pIC50>  (6) 
+8.198
+
+>  <Estimated_3D_DeltaG_kcal_mol>  (6) 
+-8.78
+
+>  <BBB_Score>  (6) 
+0.863
+
+>  <SA_Score>  (6) 
+3.41
+
+$$$$
+GBM_Lead_Rank_7
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -313,26 +451,26 @@ GBM_Lead_Rank_5
  21 15  1  0
   9  6  1  0
 M  END
->  <SMILES>  (5) 
+>  <SMILES>  (7) 
 Cc1c(COC2OCO2)ncnc1Nc1cccc(Cl)c1
 
->  <Unified_Score>  (5) 
+>  <Unified_Score>  (7) 
 15.5258
 
->  <Pred_pIC50>  (5) 
+>  <Pred_pIC50>  (7) 
 8.192
 
->  <Estimated_3D_DeltaG_kcal_mol>  (5) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (7) 
 -8.38
 
->  <BBB_Score>  (5) 
+>  <BBB_Score>  (7) 
 0.847
 
->  <SA_Score>  (5) 
+>  <SA_Score>  (7) 
 2.71
 
 $$$$
-GBM_Lead_Rank_6
+GBM_Lead_Rank_8
      RDKit          3D
 
  22 24  0  0  0  0  0  0  0  0999 V2000
@@ -383,26 +521,26 @@ GBM_Lead_Rank_6
  18  8  2  0
  17 14  1  0
 M  END
->  <SMILES>  (6) 
+>  <SMILES>  (8) 
 Fc1cccc(Nc2ncnc(OC3OCO3)c2CCCl)c1
 
->  <Unified_Score>  (6) 
+>  <Unified_Score>  (8) 
 15.4838
 
->  <Pred_pIC50>  (6) 
+>  <Pred_pIC50>  (8) 
 8.22
 
->  <Estimated_3D_DeltaG_kcal_mol>  (6) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (8) 
 -8.43
 
->  <BBB_Score>  (6) 
+>  <BBB_Score>  (8) 
 0.872
 
->  <SA_Score>  (6) 
+>  <SA_Score>  (8) 
 2.99
 
 $$$$
-GBM_Lead_Rank_7
+GBM_Lead_Rank_9
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -451,26 +589,26 @@ GBM_Lead_Rank_7
  18  8  2  0
  17 14  1  0
 M  END
->  <SMILES>  (7) 
+>  <SMILES>  (9) 
 Cc1cccc(Nc2ncnc(OC3=NOC3)c2CCl)c1
 
->  <Unified_Score>  (7) 
+>  <Unified_Score>  (9) 
 15.4826
 
->  <Pred_pIC50>  (7) 
+>  <Pred_pIC50>  (9) 
 8.387
 
->  <Estimated_3D_DeltaG_kcal_mol>  (7) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (9) 
 -8.27
 
->  <BBB_Score>  (7) 
+>  <BBB_Score>  (9) 
 0.831
 
->  <SA_Score>  (7) 
+>  <SA_Score>  (9) 
 3.01
 
 $$$$
-GBM_Lead_Rank_8
+GBM_Lead_Rank_10
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -517,26 +655,26 @@ GBM_Lead_Rank_8
  20 17  1  0
  15  8  1  0
 M  END
->  <SMILES>  (8) 
+>  <SMILES>  (10) 
 Oc1ncnc(Nc2cccc(CF)c2)c1C1=NC=C1
 
->  <Unified_Score>  (8) 
+>  <Unified_Score>  (10) 
 15.4622
 
->  <Pred_pIC50>  (8) 
+>  <Pred_pIC50>  (10) 
 8.116
 
->  <Estimated_3D_DeltaG_kcal_mol>  (8) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (10) 
 -8.88
 
->  <BBB_Score>  (8) 
+>  <BBB_Score>  (10) 
 0.761
 
->  <SA_Score>  (8) 
+>  <SA_Score>  (10) 
 3.03
 
 $$$$
-GBM_Lead_Rank_9
+GBM_Lead_Rank_11
      RDKit          3D
 
  22 24  0  0  0  0  0  0  0  0999 V2000
@@ -587,26 +725,26 @@ GBM_Lead_Rank_9
  22 19  1  0
  17 10  1  0
 M  END
->  <SMILES>  (9) 
+>  <SMILES>  (11) 
 FCCc1ncnc(Nc2cccc(CCl)c2)c1C1=COC1
 
->  <Unified_Score>  (9) 
+>  <Unified_Score>  (11) 
 15.4163
 
->  <Pred_pIC50>  (9) 
+>  <Pred_pIC50>  (11) 
 8.052
 
->  <Estimated_3D_DeltaG_kcal_mol>  (9) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (11) 
 -8.9
 
->  <BBB_Score>  (9) 
+>  <BBB_Score>  (11) 
 0.823
 
->  <SA_Score>  (9) 
+>  <SA_Score>  (11) 
 3.12
 
 $$$$
-GBM_Lead_Rank_10
+GBM_Lead_Rank_12
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -653,26 +791,26 @@ GBM_Lead_Rank_10
  15  9  1  0
  19 16  1  0
 M  END
->  <SMILES>  (10) 
+>  <SMILES>  (12) 
 FCc1cccc(Nc2ncnc(F)c2C2=COC2)c1
 
->  <Unified_Score>  (10) 
+>  <Unified_Score>  (12) 
 15.3999
 
->  <Pred_pIC50>  (10) 
+>  <Pred_pIC50>  (12) 
 7.767
 
->  <Estimated_3D_DeltaG_kcal_mol>  (10) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (12) 
 -8.84
 
->  <BBB_Score>  (10) 
+>  <BBB_Score>  (12) 
 0.91
 
->  <SA_Score>  (10) 
+>  <SA_Score>  (12) 
 3.04
 
 $$$$
-GBM_Lead_Rank_11
+GBM_Lead_Rank_13
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -721,26 +859,26 @@ GBM_Lead_Rank_11
  18  8  2  0
  17 14  1  0
 M  END
->  <SMILES>  (11) 
+>  <SMILES>  (13) 
 Fc1cccc(Nc2ncnc(OC3=NCC3)c2CCl)c1
 
->  <Unified_Score>  (11) 
+>  <Unified_Score>  (13) 
 15.3874
 
->  <Pred_pIC50>  (11) 
+>  <Pred_pIC50>  (13) 
 8.205
 
->  <Estimated_3D_DeltaG_kcal_mol>  (11) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (13) 
 -8.22
 
->  <BBB_Score>  (11) 
+>  <BBB_Score>  (13) 
 0.838
 
->  <SA_Score>  (11) 
+>  <SA_Score>  (13) 
 2.89
 
 $$$$
-GBM_Lead_Rank_12
+GBM_Lead_Rank_14
      RDKit          3D
 
  22 24  0  0  0  0  0  0  0  0999 V2000
@@ -791,26 +929,26 @@ GBM_Lead_Rank_12
  19  9  2  0
  18 15  1  0
 M  END
->  <SMILES>  (12) 
+>  <SMILES>  (14) 
 ClCc1cccc(Nc2ncnc(OC3=NNC3)c2CCl)c1
 
->  <Unified_Score>  (12) 
+>  <Unified_Score>  (14) 
 15.3675
 
->  <Pred_pIC50>  (12) 
+>  <Pred_pIC50>  (14) 
 8.46
 
->  <Estimated_3D_DeltaG_kcal_mol>  (12) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (14) 
 -8.53
 
->  <BBB_Score>  (12) 
+>  <BBB_Score>  (14) 
 0.741
 
->  <SA_Score>  (12) 
+>  <SA_Score>  (14) 
 3.13
 
 $$$$
-GBM_Lead_Rank_13
+GBM_Lead_Rank_15
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -857,26 +995,26 @@ GBM_Lead_Rank_13
  15  9  1  0
  19 16  1  0
 M  END
->  <SMILES>  (13) 
+>  <SMILES>  (15) 
 FCc1cccc(Nc2ncnc(F)c2C2=CC=C2)c1
 
->  <Unified_Score>  (13) 
+>  <Unified_Score>  (15) 
 15.3667
 
->  <Pred_pIC50>  (13) 
+>  <Pred_pIC50>  (15) 
 7.792
 
->  <Estimated_3D_DeltaG_kcal_mol>  (13) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (15) 
 -8.85
 
->  <BBB_Score>  (13) 
+>  <BBB_Score>  (15) 
 0.866
 
->  <SA_Score>  (13) 
+>  <SA_Score>  (15) 
 2.88
 
 $$$$
-GBM_Lead_Rank_14
+GBM_Lead_Rank_16
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -923,26 +1061,96 @@ GBM_Lead_Rank_14
  15  9  1  0
  19 16  1  0
 M  END
->  <SMILES>  (14) 
+>  <SMILES>  (16) 
 OCc1cccc(Nc2ncnc(F)c2C2=CCC2)c1
 
->  <Unified_Score>  (14) 
+>  <Unified_Score>  (16) 
 15.3363
 
->  <Pred_pIC50>  (14) 
+>  <Pred_pIC50>  (16) 
 7.867
 
->  <Estimated_3D_DeltaG_kcal_mol>  (14) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (16) 
 -8.96
 
->  <BBB_Score>  (14) 
+>  <BBB_Score>  (16) 
 0.804
 
->  <SA_Score>  (14) 
+>  <SA_Score>  (16) 
 2.63
 
 $$$$
-GBM_Lead_Rank_15
+GBM_Lead_Rank_17
+     RDKit          3D
+
+ 22 24  0  0  0  0  0  0  0  0999 V2000
+   28.5015   -0.7898   54.8173 C   0  0  0  0  0  0  0  0  0  0  0  0
+   27.8575   -2.1182   54.4450 C   0  0  0  0  0  0  0  0  0  0  0  0
+   26.3849   -2.1360   54.7699 C   0  0  0  0  0  0  0  0  0  0  0  0
+   25.9254   -2.6913   55.9684 C   0  0  0  0  0  0  0  0  0  0  0  0
+   24.5628   -2.6809   56.2690 C   0  0  0  0  0  0  0  0  0  0  0  0
+   23.6502   -2.1073   55.3784 C   0  0  0  0  0  0  0  0  0  0  0  0
+   24.0803   -1.5358   54.1749 C   0  0  0  0  0  0  0  0  0  0  0  0
+   23.1980   -0.9709   53.2364 N   0  0  0  0  0  0  0  0  0  0  0  0
+   21.8818   -0.4946   53.3869 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.4632   -0.0953   54.6045 N   0  0  0  0  0  0  0  0  0  0  0  0
+   20.2330    0.4195   54.7020 C   0  0  0  0  0  0  0  0  0  0  0  0
+   19.3671    0.5645   53.7005 N   0  0  0  0  0  0  0  0  0  0  0  0
+   19.7917    0.0956   52.5150 C   0  0  0  0  0  0  0  0  0  0  0  0
+   18.9119    0.2981   51.4527 O   0  0  0  0  0  0  0  0  0  0  0  0
+   18.0202   -0.7034   51.4388 C   0  0  0  0  0  0  0  0  0  0  0  0
+   17.8667   -1.8452   52.0077 N   0  0  0  0  0  0  0  0  0  0  0  0
+   16.6380   -2.0170   51.1896 C   0  0  0  0  0  0  0  0  0  0  0  0
+   16.8695   -0.8307   50.5916 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.0462   -0.4408   52.2766 C   0  0  0  0  0  0  0  0  0  0  0  0
+   21.4607   -0.9305   50.9301 C   0  0  0  0  0  0  0  0  0  0  0  0
+   22.5727    0.2192   50.1567 Cl  0  0  0  0  0  0  0  0  0  0  0  0
+   25.4552   -1.5681   53.8819 C   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0
+  2  3  1  0
+  3  4  1  0
+  4  5  2  0
+  5  6  1  0
+  6  7  2  0
+  7  8  1  0
+  8  9  1  0
+  9 10  1  0
+ 10 11  2  0
+ 11 12  1  0
+ 12 13  2  0
+ 13 14  1  0
+ 14 15  1  0
+ 15 16  2  0
+ 16 17  1  0
+ 17 18  2  0
+ 13 19  1  0
+ 19 20  1  0
+ 20 21  1  0
+  7 22  1  0
+ 22  3  2  0
+ 19  9  2  0
+ 18 15  1  0
+M  END
+>  <SMILES>  (17) 
+CCc1cccc(Nc2ncnc(OC3=NC=C3)c2CCl)c1
+
+>  <Unified_Score>  (17) 
+15.3159
+
+>  <Pred_pIC50>  (17) 
+8.801
+
+>  <Estimated_3D_DeltaG_kcal_mol>  (17) 
+-7.72
+
+>  <BBB_Score>  (17) 
+0.763
+
+>  <SA_Score>  (17) 
+2.96
+
+$$$$
+GBM_Lead_Rank_18
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -991,26 +1199,26 @@ GBM_Lead_Rank_15
  16  8  1  0
  20 17  1  0
 M  END
->  <SMILES>  (15) 
+>  <SMILES>  (18) 
 Cc1cccc(Nc2ncnc(CCF)c2C2=CNC2)c1
 
->  <Unified_Score>  (15) 
+>  <Unified_Score>  (18) 
 15.3097
 
->  <Pred_pIC50>  (15) 
+>  <Pred_pIC50>  (18) 
 8.161
 
->  <Estimated_3D_DeltaG_kcal_mol>  (15) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (18) 
 -8.31
 
->  <BBB_Score>  (15) 
+>  <BBB_Score>  (18) 
 0.851
 
->  <SA_Score>  (15) 
+>  <SA_Score>  (18) 
 2.98
 
 $$$$
-GBM_Lead_Rank_16
+GBM_Lead_Rank_19
      RDKit          3D
 
  23 25  0  0  0  0  0  0  0  0999 V2000
@@ -1063,26 +1271,26 @@ GBM_Lead_Rank_16
  20 10  2  0
  19 16  1  0
 M  END
->  <SMILES>  (16) 
+>  <SMILES>  (19) 
 C=C=Nc1cccc(Nc2ncnc(OC3=NOC3)c2CCl)c1
 
->  <Unified_Score>  (16) 
+>  <Unified_Score>  (19) 
 15.3047
 
->  <Pred_pIC50>  (16) 
+>  <Pred_pIC50>  (19) 
 8.319
 
->  <Estimated_3D_DeltaG_kcal_mol>  (16) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (19) 
 -9.24
 
->  <BBB_Score>  (16) 
+>  <BBB_Score>  (19) 
 0.745
 
->  <SA_Score>  (16) 
+>  <SA_Score>  (19) 
 3.58
 
 $$$$
-GBM_Lead_Rank_17
+GBM_Lead_Rank_20
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -1129,26 +1337,26 @@ GBM_Lead_Rank_17
  20 17  1  0
  11  5  1  0
 M  END
->  <SMILES>  (17) 
+>  <SMILES>  (20) 
 Fc1c(Nc2cccc(Cl)c2)ncnc1OC1OCO1
 
->  <Unified_Score>  (17) 
+>  <Unified_Score>  (20) 
 15.2989
 
->  <Pred_pIC50>  (17) 
+>  <Pred_pIC50>  (20) 
 8.207
 
->  <Estimated_3D_DeltaG_kcal_mol>  (17) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (20) 
 -8.06
 
->  <BBB_Score>  (17) 
+>  <BBB_Score>  (20) 
 0.856
 
->  <SA_Score>  (17) 
+>  <SA_Score>  (20) 
 2.77
 
 $$$$
-GBM_Lead_Rank_18
+GBM_Lead_Rank_21
      RDKit          3D
 
  22 24  0  0  0  0  0  0  0  0999 V2000
@@ -1199,26 +1407,26 @@ GBM_Lead_Rank_18
  22 19  1  0
  13  7  1  0
 M  END
->  <SMILES>  (18) 
+>  <SMILES>  (21) 
 C=CCc1c(Nc2cccc(C)c2)ncnc1OC1OCO1
 
->  <Unified_Score>  (18) 
+>  <Unified_Score>  (21) 
 15.2848
 
->  <Pred_pIC50>  (18) 
+>  <Pred_pIC50>  (21) 
 8.556
 
->  <Estimated_3D_DeltaG_kcal_mol>  (18) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (21) 
 -7.77
 
->  <BBB_Score>  (18) 
+>  <BBB_Score>  (21) 
 0.856
 
->  <SA_Score>  (18) 
+>  <SA_Score>  (21) 
 2.97
 
 $$$$
-GBM_Lead_Rank_19
+GBM_Lead_Rank_22
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -1267,26 +1475,26 @@ GBM_Lead_Rank_19
  21 17  1  0
  15  9  1  0
 M  END
->  <SMILES>  (19) 
+>  <SMILES>  (22) 
 COc1ncnc(Nc2cccc(C)c2)c1C1CCNC1
 
->  <Unified_Score>  (19) 
+>  <Unified_Score>  (22) 
 15.2768
 
->  <Pred_pIC50>  (19) 
+>  <Pred_pIC50>  (22) 
 8.286
 
->  <Estimated_3D_DeltaG_kcal_mol>  (19) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (22) 
 -8.18
 
->  <BBB_Score>  (19) 
+>  <BBB_Score>  (22) 
 0.804
 
->  <SA_Score>  (19) 
+>  <SA_Score>  (22) 
 2.94
 
 $$$$
-GBM_Lead_Rank_20
+GBM_Lead_Rank_23
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -1335,26 +1543,26 @@ GBM_Lead_Rank_20
  21 18  1  0
  12  6  1  0
 M  END
->  <SMILES>  (20) 
+>  <SMILES>  (23) 
 CCc1c(Nc2cccc(C)c2)ncnc1OC1OCO1
 
->  <Unified_Score>  (20) 
+>  <Unified_Score>  (23) 
 15.2753
 
->  <Pred_pIC50>  (20) 
+>  <Pred_pIC50>  (23) 
 8.22
 
->  <Estimated_3D_DeltaG_kcal_mol>  (20) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (23) 
 -7.79
 
->  <BBB_Score>  (20) 
+>  <BBB_Score>  (23) 
 0.867
 
->  <SA_Score>  (20) 
+>  <SA_Score>  (23) 
 2.82
 
 $$$$
-GBM_Lead_Rank_21
+GBM_Lead_Rank_24
      RDKit          3D
 
  21 23  0  0  0  0  0  0  0  0999 V2000
@@ -1403,26 +1611,26 @@ GBM_Lead_Rank_21
  14  9  1  0
  20 17  1  0
 M  END
->  <SMILES>  (21) 
+>  <SMILES>  (24) 
 FCc1cccc(Nc2ncncc2N=CC2COC2)c1
 
->  <Unified_Score>  (21) 
+>  <Unified_Score>  (24) 
 15.2748
 
->  <Pred_pIC50>  (21) 
+>  <Pred_pIC50>  (24) 
 8.01
 
->  <Estimated_3D_DeltaG_kcal_mol>  (21) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (24) 
 -8.58
 
->  <BBB_Score>  (21) 
+>  <BBB_Score>  (24) 
 0.87
 
->  <SA_Score>  (21) 
+>  <SA_Score>  (24) 
 3.16
 
 $$$$
-GBM_Lead_Rank_22
+GBM_Lead_Rank_25
      RDKit          3D
 
  20 22  0  0  0  0  0  0  0  0999 V2000
@@ -1469,228 +1677,22 @@ GBM_Lead_Rank_22
  19  8  2  0
  16 13  1  0
 M  END
->  <SMILES>  (22) 
+>  <SMILES>  (25) 
 Fc1cccc(Nc2cc(NOC3=NC=C3)ncn2)c1
 
->  <Unified_Score>  (22) 
+>  <Unified_Score>  (25) 
 15.2725
 
->  <Pred_pIC50>  (22) 
+>  <Pred_pIC50>  (25) 
 8.636
 
->  <Estimated_3D_DeltaG_kcal_mol>  (22) 
+>  <Estimated_3D_DeltaG_kcal_mol>  (25) 
 -8.08
 
->  <BBB_Score>  (22) 
+>  <BBB_Score>  (25) 
 0.744
 
->  <SA_Score>  (22) 
-3.06
-
-$$$$
-GBM_Lead_Rank_23
-     RDKit          3D
-
- 20 22  0  0  0  0  0  0  0  0999 V2000
-   24.9427   -3.2975   54.2607 F   0  0  0  0  0  0  0  0  0  0  0  0
-   24.5319   -2.8149   55.4690 C   0  0  0  0  0  0  0  0  0  0  0  0
-   23.3637   -1.8734   55.3717 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.8826   -1.2293   56.5161 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.8015   -0.3560   56.4231 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.1876   -0.1255   55.1889 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.6308   -0.7696   54.0301 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.0676   -0.5490   52.7613 N   0  0  0  0  0  0  0  0  0  0  0  0
-   19.8522    0.0477   52.3749 C   0  0  0  0  0  0  0  0  0  0  0  0
-   18.8301    0.0723   53.2566 N   0  0  0  0  0  0  0  0  0  0  0  0
-   17.6694    0.6073   52.8567 C   0  0  0  0  0  0  0  0  0  0  0  0
-   17.4218    1.1336   51.6596 N   0  0  0  0  0  0  0  0  0  0  0  0
-   18.4638    1.1159   50.8112 C   0  0  0  0  0  0  0  0  0  0  0  0
-   18.2404    1.6656   49.6058 F   0  0  0  0  0  0  0  0  0  0  0  0
-   19.7094    0.5928   51.1058 C   0  0  0  0  0  0  0  0  0  0  0  0
-   20.8746    0.6701   50.0650 C   0  0  0  0  0  0  0  0  0  0  0  0
-   20.9192    0.9527   48.7470 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.4226    0.8662   48.6653 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.3824    0.5059   50.1604 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.7334   -1.6332   54.1401 C   0  0  0  0  0  0  0  0  0  0  0  0
-  1  2  1  0
-  2  3  1  0
-  3  4  1  0
-  4  5  2  0
-  5  6  1  0
-  6  7  2  0
-  7  8  1  0
-  8  9  1  0
-  9 10  2  0
- 10 11  1  0
- 11 12  2  0
- 12 13  1  0
- 13 14  1  0
- 13 15  2  0
- 15 16  1  0
- 16 17  2  0
- 17 18  1  0
- 18 19  1  0
-  7 20  1  0
- 20  3  2  0
- 15  9  1  0
- 19 16  1  0
-M  END
->  <SMILES>  (23) 
-FCc1cccc(Nc2ncnc(F)c2C2=CCC2)c1
-
->  <Unified_Score>  (23) 
-15.272
-
->  <Pred_pIC50>  (23) 
-7.792
-
->  <Estimated_3D_DeltaG_kcal_mol>  (23) 
--8.86
-
->  <BBB_Score>  (23) 
-0.836
-
->  <SA_Score>  (23) 
-2.77
-
-$$$$
-GBM_Lead_Rank_24
-     RDKit          3D
-
- 22 24  0  0  0  0  0  0  0  0999 V2000
-   19.5973    2.1222   50.4369 F   0  0  0  0  0  0  0  0  0  0  0  0
-   18.5344    1.7092   51.1732 C   0  0  0  0  0  0  0  0  0  0  0  0
-   18.7109    0.2562   51.5747 C   0  0  0  0  0  0  0  0  0  0  0  0
-   19.7728    0.0829   52.6253 C   0  0  0  0  0  0  0  0  0  0  0  0
-   19.2329    0.1476   53.8690 N   0  0  0  0  0  0  0  0  0  0  0  0
-   20.0473   -0.0140   54.9084 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.3531   -0.2306   54.8324 N   0  0  0  0  0  0  0  0  0  0  0  0
-   21.8999   -0.2705   53.6031 C   0  0  0  0  0  0  0  0  0  0  0  0
-   23.2902   -0.5029   53.5357 N   0  0  0  0  0  0  0  0  0  0  0  0
-   24.1448   -1.2000   54.4112 C   0  0  0  0  0  0  0  0  0  0  0  0
-   23.6789   -2.1093   55.3714 C   0  0  0  0  0  0  0  0  0  0  0  0
-   24.5629   -2.8059   56.2044 C   0  0  0  0  0  0  0  0  0  0  0  0
-   25.9342   -2.6094   56.0801 C   0  0  0  0  0  0  0  0  0  0  0  0
-   26.4050   -1.7230   55.1220 C   0  0  0  0  0  0  0  0  0  0  0  0
-   27.7250   -1.5349   54.9904 F   0  0  0  0  0  0  0  0  0  0  0  0
-   25.5306   -1.0271   54.2906 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.1427   -0.1141   52.4152 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.8691   -0.1923   51.0827 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.2032   -0.5843   49.7680 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.3046   -0.2796   48.7655 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.8712    0.9876   49.2322 N   0  0  0  0  0  0  0  0  0  0  0  0
-   22.5918    1.1017   50.6718 C   0  0  0  0  0  0  0  0  0  0  0  0
-  1  2  1  0
-  2  3  1  0
-  3  4  1  0
-  4  5  1  0
-  5  6  2  0
-  6  7  1  0
-  7  8  2  0
-  8  9  1  0
-  9 10  1  0
- 10 11  2  0
- 11 12  1  0
- 12 13  2  0
- 13 14  1  0
- 14 15  1  0
- 14 16  2  0
-  8 17  1  0
- 17 18  1  0
- 18 19  1  0
- 19 20  1  0
- 20 21  1  0
- 21 22  1  0
- 17  4  2  0
- 22 18  1  0
- 16 10  1  0
-M  END
->  <SMILES>  (24) 
-FCCc1ncnc(Nc2cccc(F)c2)c1C1CCNC1
-
->  <Unified_Score>  (24) 
-15.2709
-
->  <Pred_pIC50>  (24) 
-8.393
-
->  <Estimated_3D_DeltaG_kcal_mol>  (24) 
--8.07
-
->  <BBB_Score>  (24) 
-0.856
-
->  <SA_Score>  (24) 
-3.24
-
-$$$$
-GBM_Lead_Rank_25
-     RDKit          3D
-
- 22 24  0  0  0  0  0  0  0  0999 V2000
-   24.8262    0.3935   54.1051 F   0  0  0  0  0  0  0  0  0  0  0  0
-   24.7955   -0.7779   54.7691 C   0  0  0  0  0  0  0  0  0  0  0  0
-   23.8749   -1.7126   54.5386 C   0  0  0  0  0  0  0  0  0  0  0  0
-   22.8451   -1.5572   53.5160 C   0  0  0  0  0  0  0  0  0  0  0  0
-   23.2457   -2.0916   52.3424 N   0  0  0  0  0  0  0  0  0  0  0  0
-   22.4237   -1.9384   51.3088 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.2413   -1.3288   51.3459 N   0  0  0  0  0  0  0  0  0  0  0  0
-   20.8303   -0.8461   52.5323 C   0  0  0  0  0  0  0  0  0  0  0  0
-   19.5601   -0.2338   52.5761 N   0  0  0  0  0  0  0  0  0  0  0  0
-   18.8474    0.4631   51.5824 C   0  0  0  0  0  0  0  0  0  0  0  0
-   19.4542    0.9748   50.4254 C   0  0  0  0  0  0  0  0  0  0  0  0
-   18.7165    1.6912   49.4746 C   0  0  0  0  0  0  0  0  0  0  0  0
-   17.3562    1.9135   49.6732 C   0  0  0  0  0  0  0  0  0  0  0  0
-   16.7509    1.4240   50.8227 C   0  0  0  0  0  0  0  0  0  0  0  0
-   15.4445    1.6348   51.0193 F   0  0  0  0  0  0  0  0  0  0  0  0
-   17.4789    0.7139   51.7744 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.6107   -0.9371   53.7006 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.0856   -0.3623   54.9995 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.1484    1.1632   55.0668 C   0  0  0  0  0  0  0  0  0  0  0  0
-   20.9693    1.4893   56.5471 C   0  0  0  0  0  0  0  0  0  0  0  0
-   21.0109    0.2131   57.2805 N   0  0  0  0  0  0  0  0  0  0  0  0
-   21.6622   -0.7371   56.3642 C   0  0  0  0  0  0  0  0  0  0  0  0
-  1  2  1  0
-  2  3  2  3
-  3  4  1  0
-  4  5  1  0
-  5  6  2  0
-  6  7  1  0
-  7  8  2  0
-  8  9  1  0
-  9 10  1  0
- 10 11  2  0
- 11 12  1  0
- 12 13  2  0
- 13 14  1  0
- 14 15  1  0
- 14 16  2  0
-  8 17  1  0
- 17 18  1  0
- 18 19  1  0
- 19 20  1  0
- 20 21  1  0
- 21 22  1  0
- 17  4  2  0
- 22 18  1  0
- 16 10  1  0
-M  END
->  <SMILES>  (25) 
-FC=Cc1ncnc(Nc2cccc(F)c2)c1C1CCNC1
-
->  <Unified_Score>  (25) 
-15.2677
-
->  <Pred_pIC50>  (25) 
-8.182
-
->  <Estimated_3D_DeltaG_kcal_mol>  (25) 
--8.72
-
->  <BBB_Score>  (25) 
-0.797
-
 >  <SA_Score>  (25) 
-3.48
+3.06
 
 $$$$
