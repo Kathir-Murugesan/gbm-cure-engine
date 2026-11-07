@@ -1,5 +1,5 @@
 {
-  "generation": 1506524,
+  "generation": 1686472,
   "sigma": 0.45,
   "best_score": 15.8597,
   "stagnant_generations": 0,
@@ -17,5 +17,5 @@
     "FCc1cccc(Nc2ncnc(F)c2C2=COC2)c1",
     "C=Nc1ccnc(Nc2cccc(F)c2)c1C1CNC1"
   ],
-  "total_evaluated": 3992348
+  "total_evaluated": 4173670
 }
